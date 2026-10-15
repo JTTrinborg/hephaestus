@@ -1,7 +1,7 @@
 langgraph
 #langgraph-checkpoint-postgres     ### When agents is going to start remembering
 langchain-anthropic
-#langchain-ollama                  ### When adding Ollama model
+langchain-ollama
 python-dotenv
 langchain-tavily
 #fastapi                           ### When /run endpoint is created  

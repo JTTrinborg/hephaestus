@@ -1,19 +1,20 @@
 from typing import Annotated, TypedDict
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-load_dotenv()
+from app.config import get_llm
 from app.tools.search import search_tool
 
+
+#################### THIS IS THE MAIN FILE FOR THE AGENT NODE SETUP ###############################
+#In this file we create the agents as well as set up the graph logic with langGraph and langChain.
 
 
 ################# SETUP ###########################
 RESEARCHER = "researcher"
 TOOLS = "tools"
-SYSTEM = SystemMessage(content="You are a professional researcher. Do web search when you need facts. State your sources")
+SYSTEM = SystemMessage(content="You are a professional researcher. Do web search when you need facts. State your sources with a link")
 
 
 
@@ -22,7 +23,7 @@ class AgentState(TypedDict):
 
 
 tools = [search_tool]
-llm = ChatAnthropic(model="claude-haiku-5-5").bind_tools(tools)
+llm = get_llm("ollama").bind_tools(tools)
 
 
 
