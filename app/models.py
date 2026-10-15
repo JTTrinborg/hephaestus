@@ -1,0 +1,17 @@
+from pydantic import BaseModel, Field
+
+############ THIS FILE IS TO LET THE AI KNOW HOW TO ANSWER ON THE JOB LISTING QUESTION ######################
+
+
+
+class Job(BaseModel):
+    title: str
+    company: str
+    location: str
+    url: str
+    score: int = Field(ge=1, le=10, description="How good does the role match the profile")
+    reason: str = Field(description="A sentence about why")
+
+
+class JobList(BaseModel):
+    jobs: list[Job]
