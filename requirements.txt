@@ -3,6 +3,7 @@ langgraph
 langchain-anthropic
 #langchain-ollama                  ### When adding Ollama model
 python-dotenv
+langchain-tavily
 #fastapi                           ### When /run endpoint is created  
 #uvicorn                           ### When /run endpoint is created     
 #psycopg[binary]                   ### When agents is going to start remembering
