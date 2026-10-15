@@ -1,0 +1,8 @@
+langgraph
+#langgraph-checkpoint-postgres     ### When agents is going to start remembering
+langchain-anthropic
+#langchain-ollama                  ### When adding Ollama model
+python-dotenv
+#fastapi                           ### When /run endpoint is created  
+#uvicorn                           ### When /run endpoint is created     
+#psycopg[binary]                   ### When agents is going to start remembering
