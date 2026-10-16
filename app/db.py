@@ -1,4 +1,5 @@
 import os
+import re
 import psycopg
 from app.models import Job
 
@@ -6,9 +7,10 @@ from app.models import Job
 ################# DATABASE FOR JOBS ALREADY SENT #################
 CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS seen_jobs (
-    url        TEXT PRIMARY KEY,
+    job_key    TEXT PRIMARY KEY,
     title      TEXT,
     company    TEXT,
+    url        TEXT,
     first_seen TIMESTAMPTZ DEFAULT now()
 );
 """
@@ -16,6 +18,12 @@ CREATE TABLE IF NOT EXISTS seen_jobs (
 #DB Connection
 def _connect():
     return psycopg.connect(os.getenv("DATABASE_URL"))
+
+def _key(job: Job) -> str:
+    """Stable ID for a job. Company and title, lowercase, letters and digits only."""
+    company = re.sub(r"[^a-z0-9]", "", job.company.lower())
+    title = re.sub(r"[^a-z0-9]", "", job.title.lower())
+    return f"{company}:{title}"
 
 def _clean(url: str) -> str:
     """Remove tracking parameters so the same job always gets the same URL."""
@@ -29,15 +37,13 @@ def filter_new(jobs: list[Job]) -> list[Job]:
     """Return only jobs that have not been sent before."""
     if not jobs:
         return []
-    urls = [_clean(job.url) for job in jobs]
+    keys = [_key(job) for job in jobs]
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT url FROM seen_jobs WHERE url = ANY(%s)", (urls,)
+            "SELECT job_key FROM seen_jobs WHERE job_key = ANY(%s)", (keys,)
         ).fetchall()
     seen = {row[0] for row in rows}
-    return [job for job in jobs if _clean(job.url) not in seen]
-
-
+    return [job for job in jobs if _key(job) not in seen]
 
 
 def mark_sent(jobs: list[Job]) -> None:
@@ -45,9 +51,9 @@ def mark_sent(jobs: list[Job]) -> None:
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.executemany(
-                "INSERT INTO seen_jobs (url, title, company) VALUES (%s, %s, %s) "
-                "ON CONFLICT (url) DO NOTHING",
-                [(_clean(j.url), j.title, j.company) for j in jobs],
+                "INSERT INTO seen_jobs (job_key, title, company, url) VALUES (%s, %s, %s, %s) "
+                "ON CONFLICT (job_key) DO NOTHING",
+                [(_key(j), j.title, j.company, j.url) for j in jobs],
             )
 
 
