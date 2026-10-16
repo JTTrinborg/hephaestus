@@ -10,7 +10,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from app.config import get_llm
 from app.tools.search import search_tool
 from app.models import Job, JobList
-from app.db import filter_new
+from app.db import filter_new, mark_sent
 t("imports done") # For troubleshooting
 
 
@@ -23,6 +23,8 @@ RANK = "rank"
 RESEARCHER = "researcher"
 TOOLS = "tools"
 DEDUPE = "dedupe"
+REPORT = "report"
+report_llm = get_llm("ollama")
 SYSTEM = SystemMessage(content="You are an expert job researcher. Give me the answer short and consice. Write like a caveman")
 PROFILE = Path("data/profile.md").read_text(encoding="utf-8")
 
@@ -55,7 +57,6 @@ def rank(state: JobState) -> dict:
 
 
 ######## RESEARCHER NODE #####################
-# Not connected in step 3, comes back in step 4
 def researcher(state: JobState) -> dict:
     messages = state["messages"]
     new_messages = []
@@ -86,6 +87,35 @@ def dedupe(state: JobState) -> dict:
     return {"jobs": new_jobs}
 
 
+######## REPORT NODE #####################
+def report(state:JobState) -> dict:
+    jobs = state["jobs"]
+    if not jobs:
+        return {"report": "No new jobs today bretherin."}
+
+    job_lines = "\n".join(
+        f"- {j.score}/10 {j.title} at {j.company} ({j.location}) {j.url}\n  {j.reason}"
+        for j in jobs
+    )
+    research = state["messages"][-1].text if state["messages"] else ""
+
+    prompt = (
+        "Write a short job report email in markdown for me.\n"
+        "Start with the top 5 jobs. For each, give score, title, company, location, link, "
+        "the reason, and one or two lines about the company from the research.\n"
+        "Then list the remaining jobs with one line each.\n"
+        "Do not invent anything. Only use the information below.\n\n"
+        f"# Jobs\n{job_lines}\n\n# Company research\n{research}"
+    )
+    text = report_llm.invoke(prompt).text
+    mark_sent(jobs)
+    return {"report": text}
+
+
+######## Conditional IF NEW JOBS NODE ##################
+def has_new_jobs(state: JobState) -> str:
+    return RESEARCHER if state["jobs"] else REPORT
+
 
 
 
@@ -94,13 +124,23 @@ builder = StateGraph(JobState)
 builder.add_node(RANK, rank)
 builder.add_node(DEDUPE, dedupe)
 builder.add_node(RESEARCHER, researcher)
+builder.add_node(REPORT, report)
+builder.add_node(TOOLS, ToolNode(tools))
+
 builder.add_edge(START, RANK)
 builder.add_edge(RANK, DEDUPE)
-builder.add_edge(DEDUPE, RESEARCHER)
-builder.add_edge(RESEARCHER, END)
-builder.add_node(TOOLS, ToolNode(tools))
-builder.add_conditional_edges(RESEARCHER, tools_condition)
+builder.add_conditional_edges(DEDUPE, has_new_jobs,
+                              {
+                                  RESEARCHER: RESEARCHER,
+                                  REPORT: REPORT
+                              })
+builder.add_conditional_edges(RESEARCHER, tools_condition,
+                              {
+                                  TOOLS: TOOLS,
+                                  END: REPORT
+                              })
 builder.add_edge(TOOLS, RESEARCHER)
+builder.add_edge(REPORT, END)
 
 graph = builder.compile()
 t("graph compiled") # For troubleshooting
@@ -113,4 +153,5 @@ if __name__ == "__main__":
     for job in result["jobs"]:
         print(f"{job.score}/10  {job.title} · {job.company} · {job.location}")
         print(f"      {job.reason}\n")
+    print(result["report"])
     t("finished")  # For troubleshooting
