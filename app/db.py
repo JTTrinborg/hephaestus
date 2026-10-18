@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS seen_jobs (
 
 #DB Connection
 def _connect():
-    return psycopg.connect(os.getenv("DATABASE_URL"))
+    conn = psycopg.connect(os.getenv("DATABASE_URL"))
+    conn.execute(CREATE_TABLE)
+    return conn
 
 def _key(job: Job) -> str:
     """Stable ID. SEEK job ID when the URL has one, otherwise company and title."""

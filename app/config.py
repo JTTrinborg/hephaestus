@@ -9,6 +9,11 @@ def get_llm(provider: str | None = None):
     provider = provider or os.getenv("MODEL_PROVIDER", "anthropic")
     if provider == "ollama":
         from langchain_ollama import ChatOllama
-        return ChatOllama(model=os.getenv("OLLAMA_MODEL"), num_ctx=16384)
+        return ChatOllama(
+            model=os.getenv("OLLAMA_MODEL"),
+            base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+            num_ctx=16384,
+            reasoning=False,
+        )
     from langchain_anthropic import ChatAnthropic
     return ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL"))

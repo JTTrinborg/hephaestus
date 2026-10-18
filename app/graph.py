@@ -102,10 +102,14 @@ def report(state:JobState) -> dict:
     research = state["messages"][-1].text if state["messages"] else ""
 
     prompt = (
-        "Write a short job report email in markdown for me.\n"
-        "Start with the top 5 jobs. For each, give score, title, company, location, link, "
-        "the reason, and one or two lines about the company from the research.\n"
-        "Then list the remaining jobs with one line each.\n"
+        "Write a short job report email in markdown.\n"
+        "Use exactly this format for each of the top 5 jobs. Never use tables.\n\n"
+        "### {score}/10 {title} at {company}\n"
+        "- **Location:** {location}\n"
+        "- **Link:** [Job listing]({url})\n"
+        "- **Reason:** {reason}\n"
+        "- **Company:** one or two lines from the research\n\n"
+        "Then a section '## Remaining jobs' with one line per job: score, title, company, link.\n"
         "Do not invent anything. Only use the information below.\n"
         "Return the markdown directly. Do not wrap it in a code block.\n\n"
         f"# Jobs\n{job_lines}\n\n# Company research\n{research}"

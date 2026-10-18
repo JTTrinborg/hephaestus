@@ -1,0 +1,345 @@
+{
+  "name": "Hephaestus",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "morning-jobs",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -784,
+        -144
+      ],
+      "id": "9fc8454f-e153-4cda-9747-cd75cab65c66",
+      "name": "Webhook",
+      "webhookId": "1bae5742-ef46-4fe5-9534-d65ba4d117ed",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bB7euTyPFr81Xk35",
+          "name": "Hephaestus webhook"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 10,
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "Label_2627076912042147536"
+          ],
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        -144
+      ],
+      "id": "c1d5e69b-f29b-4195-bc66-a45f08eea5fa",
+      "name": "Get many messages",
+      "webhookId": "a3ed5342-b491-4d00-8e97-9978e3b74048",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8PW8mzJaBkgTXymU",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        48
+      ],
+      "id": "8fda5e13-b21c-40e3-abdc-6d39344e67cc",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/run",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=alert_text",
+              "value": "={{ $json.alert_text }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -64,
+        -144
+      ],
+      "id": "57abf426-a951-496b-9e51-4be00b5179b1",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "S4q1bnyUfMmBtsHV",
+          "name": "Hephaestus API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a1cfdf50-578e-414e-8f9c-e6e9a2c47201",
+              "leftValue": "={{ $json.new_jobs }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        160,
+        -144
+      ],
+      "id": "b7602d2c-a2f6-43b9-9800-e21a30f93623",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "={{ $json.report }}",
+        "destinationKey": "html",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        384,
+        -240
+      ],
+      "id": "b163bd82-87b5-411c-8bb9-3779b18b18f0",
+      "name": "Markdown"
+    },
+    {
+      "parameters": {
+        "sendTo": "you@example.com",
+        "subject": "=Hephaestus jobbrapport {{ $now.toFormat('dd.MM.yyyy') }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        608,
+        -240
+      ],
+      "id": "095ba4e1-55c5-43ae-bd03-6b811e1e6c25",
+      "name": "Send a message",
+      "webhookId": "a0cb50f8-3d03-4290-a2c5-42104eca209d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8PW8mzJaBkgTXymU",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.id }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1072,
+        -80
+      ],
+      "id": "c4fcb370-4983-4b04-af5e-ee7cd29105c9",
+      "name": "Mark a message as read",
+      "webhookId": "50f9b96e-fe34-4f28-8530-90ebcdda7bcd",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8PW8mzJaBkgTXymU",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clean = (t) => t\n  .replace(/(https:\\/\\/au\\.seek\\.com\\/job\\/\\d+)\\?[^\\]\\s]*/g, '$1')\n  .replace(/\\[https?:\\/\\/(?!au\\.seek\\.com\\/job\\/)[^\\]]*\\]\\S*/g, '')\n  .replace(/%%[^%]+%%/g, '')\n  .split('View all matching jobs')[0]\n  .replace(/\\n{3,}/g, '\\n\\n');\n\nconst text = $input.all()\n  .map(item => `Subject: ${item.json.subject}\\n\\n${clean(item.json.text || \"\")}`)\n  .join(\"\\n\\n----- NEXT EMAIL -----\\n\\n\");\n\nreturn [{ json: { alert_text: text } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        -144
+      ],
+      "id": "cf052af3-30e7-4bc9-87b1-ba73c4da4dc9",
+      "name": "Gather emails to one text"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Get many messages').all().map(item => ({ json: { id: item.json.id } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        -80
+      ],
+      "id": "a33e6a9d-5c4c-4666-8d33-bd356c94050e",
+      "name": "Message IDs"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many messages": {
+      "main": [
+        [
+          {
+            "node": "Gather emails to one text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Message IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gather emails to one text": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message IDs": {
+      "main": [
+        [
+          {
+            "node": "Mark a message as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b2481263-567f-41f2-b61e-b8020ea08a21",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c037d8a31e506521cf3f37ca60941aa42fab15bd5c301a6fe72664664ce53537"
+  },
+  "nodeGroups": [],
+  "id": "tYJHdMqKxH0p5xfW",
+  "tags": []
+}
