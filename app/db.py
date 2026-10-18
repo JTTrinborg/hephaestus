@@ -20,7 +20,10 @@ def _connect():
     return psycopg.connect(os.getenv("DATABASE_URL"))
 
 def _key(job: Job) -> str:
-    """Stable ID for a job. Company and title, lowercase, letters and digits only."""
+    """Stable ID. SEEK job ID when the URL has one, otherwise company and title."""
+    match = re.search(r"seek\.com\.au/job/(\d+)", job.url or "")
+    if match:
+        return f"seek:{match.group(1)}"
     company = re.sub(r"[^a-z0-9]", "", job.company.lower())
     title = re.sub(r"[^a-z0-9]", "", job.title.lower())
     return f"{company}:{title}"

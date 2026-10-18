@@ -47,7 +47,9 @@ rank_llm = get_llm("ollama").with_structured_output(JobList)
 def rank(state: JobState) -> dict:
     start = time.time() # For troubleshooting
     prompt = (
-        "Extract every job from the job alert below and score each one against my profile.\n\n"
+        "Extract every job from the job alert below and score each one against my profile.\n"
+        "Copy title, company, location and URL exactly as written in the alert. Never invent a URL. "
+        "If a job has no URL, leave it empty.\n\n"
         f"# My profile\n{PROFILE}\n\n# Job alert\n{state['alert_text']}"
     )
     result = rank_llm.invoke(prompt)
@@ -104,7 +106,8 @@ def report(state:JobState) -> dict:
         "Start with the top 5 jobs. For each, give score, title, company, location, link, "
         "the reason, and one or two lines about the company from the research.\n"
         "Then list the remaining jobs with one line each.\n"
-        "Do not invent anything. Only use the information below.\n\n"
+        "Do not invent anything. Only use the information below.\n"
+        "Return the markdown directly. Do not wrap it in a code block.\n\n"
         f"# Jobs\n{job_lines}\n\n# Company research\n{research}"
     )
     text = report_llm.invoke(prompt).text
