@@ -4,6 +4,8 @@ import psycopg
 from app.models import Job
 
 
+TZ = "Australia/Brisbane"
+
 ################# DATABASE FOR JOBS ALREADY SENT #################
 CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS seen_jobs (
@@ -83,6 +85,37 @@ def log_usage(agent: str, model: str, input_tokens: int, output_tokens: int, cos
             "VALUES (%s, %s, %s, %s, %s)",
             (agent, model, input_tokens, output_tokens, cost),
         )
+
+
+def month_cost(agent:str) -> float:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(cost_usd), 0) FROM usage "
+            "WHERE agent = %s AND created_at >= date_trunc('month', now())",
+            (agent,),
+        ).fetchone()
+    return float(row[0])
+
+
+def cost_summary() -> str:
+    """Markdown section with today's cost per agent and the month total."""
+    with _connect() as conn:
+        today = conn.execute(
+            "SELECT agent, SUM(cost_usd) FROM usage "
+            "WHERE created_at >= date_trunc('day', now() AT TIME ZONE %s) AT TIME ZONE %s "
+            "GROUP BY agent ORDER BY agent",
+            (TZ, TZ),
+        ).fetchall()
+        month = conn.execute(
+            "SELECT COALESCE(SUM(cost_usd), 0) FROM usage "
+            "WHERE created_at >= date_trunc('month', now() AT TIME ZONE %s) AT TIME ZONE %s",
+            (TZ, TZ),
+        ).fetchone()[0]
+
+    lines = ["## Cost", ""]
+    lines += [f"- {agent}: ${float(cost):.4f}" for agent, cost in today]
+    lines += [f"- **This month:** ${float(month):.4f}"]
+    return "\n".join(lines)
 
 
 init_db()

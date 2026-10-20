@@ -3,7 +3,7 @@ T0 = time.time() # For troubleshooting
 def t(label): print(f"[{time.time() - T0:6.1f}s] {label}") # For troubleshooting
 from pathlib import Path
 from typing import Annotated, TypedDict
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -12,7 +12,8 @@ from app.tracing import trace_config
 from app.config import get_llm
 from app.tools.search import search_tool
 from app.models import Job, JobList
-from app.db import filter_new, mark_sent
+from app.db import filter_new, mark_sent, cost_summary
+from app.budget import BudgetExceeded, check_budget
 from app.usage import track
 t("imports done") # For troubleshooting
 
@@ -68,6 +69,11 @@ def rank(state: JobState) -> dict:
 def researcher(state: JobState) -> dict:
     messages = state["messages"]
     new_messages = []
+# Checks first if it is over budget
+    try:
+        check_budget(RESEARCHER)
+    except BudgetExceeded as e:
+        return {"messages": [AIMessage(content=f"Company research skipped. {e}")]}
 
     if not messages:
         top5 = state["jobs"][:5]
@@ -123,8 +129,12 @@ def report(state:JobState) -> dict:
     )
     response = report_llm.invoke(prompt)
     track(REPORT, response)
+    text = response.text
+    if research.startswith("Company research skipped"):
+        text = f"> ⚠️ {research}\n\n{text}"
+    text = text + "\n\n" + cost_summary()
     mark_sent(jobs)
-    return {"report": response.text}
+    return {"report": text}
 
 
 ######## Conditional IF NEW JOBS NODE ##################
