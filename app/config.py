@@ -17,3 +17,15 @@ def get_llm(provider: str | None = None):
         )
     from langchain_anthropic import ChatAnthropic
     return ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL"))
+
+
+PRICES = {
+    "claude-haiku-5-5": (0.10, 0.50),
+    "qwen3": (0.0, 0.0),
+}
+
+def price_for(model: str) -> tuple[float, float]:
+    for name, price in PRICES.items():
+        if model.startswith(name):
+            return price
+    return (0.0, 0.0)

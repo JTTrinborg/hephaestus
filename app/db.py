@@ -15,10 +15,24 @@ CREATE TABLE IF NOT EXISTS seen_jobs (
 );
 """
 
+############### DATABASE FOR COST USAGE ###################################
+CREATE_USAGE = """
+CREATE TABLE IF NOT EXISTS usage (
+    id            SERIAL PRIMARY KEY,
+    agent         TEXT,
+    model         TEXT,
+    input_tokens  INT,
+    output_tokens INT,
+    cost_usd      NUMERIC(10, 6),
+    created_at    TIMESTAMPTZ DEFAULT now()
+);
+"""
+
 #DB Connection
 def _connect():
     conn = psycopg.connect(os.getenv("DATABASE_URL"))
     conn.execute(CREATE_TABLE)
+    conn.execute(CREATE_USAGE)
     return conn
 
 def _key(job: Job) -> str:
@@ -30,9 +44,9 @@ def _key(job: Job) -> str:
     title = re.sub(r"[^a-z0-9]", "", job.title.lower())
     return f"{company}:{title}"
 
-def _clean(url: str) -> str:
-    """Remove tracking parameters so the same job always gets the same URL."""
-    return url.split("?")[0].rstrip("/")
+#def _clean(url: str) -> str:
+#   """Remove tracking parameters so the same job always gets the same URL."""
+#  return url.split("?")[0].rstrip("/")
 
 def init_db() -> None:
     with _connect() as conn:
@@ -60,6 +74,15 @@ def mark_sent(jobs: list[Job]) -> None:
                 "ON CONFLICT (job_key) DO NOTHING",
                 [(_key(j), j.title, j.company, j.url) for j in jobs],
             )
+
+
+def log_usage(agent: str, model: str, input_tokens: int, output_tokens: int, cost: float) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO usage (agent, model, input_tokens, output_tokens, cost_usd) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (agent, model, input_tokens, output_tokens, cost),
+        )
 
 
 init_db()

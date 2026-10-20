@@ -1,4 +1,5 @@
 langgraph
+langfuse
 #langgraph-checkpoint-postgres     ### When agents is going to start remembering
 langchain-anthropic
 langchain-ollama
