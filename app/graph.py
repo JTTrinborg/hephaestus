@@ -3,14 +3,18 @@ T0 = time.time() # For troubleshooting
 def t(label): print(f"[{time.time() - T0:6.1f}s] {label}") # For troubleshooting
 from pathlib import Path
 from typing import Annotated, TypedDict
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
+from langfuse import get_client
+from app.tracing import trace_config
 from app.config import get_llm
 from app.tools.search import search_tool
 from app.models import Job, JobList
-from app.db import filter_new, mark_sent
+from app.db import filter_new, mark_sent, cost_summary
+from app.budget import BudgetExceeded, check_budget
+from app.usage import track
 t("imports done") # For troubleshooting
 
 
@@ -38,7 +42,7 @@ class JobState(TypedDict):
 
 tools = [search_tool]
 llm = get_llm("anthropic").bind_tools(tools)
-rank_llm = get_llm("ollama").with_structured_output(JobList)
+rank_llm = get_llm("ollama").with_structured_output(JobList, include_raw=True)
 
 
 
@@ -53,7 +57,10 @@ def rank(state: JobState) -> dict:
         f"# My profile\n{PROFILE}\n\n# Job alert\n{state['alert_text']}"
     )
     result = rank_llm.invoke(prompt)
-    jobs = sorted(result.jobs, key=lambda j: j.score, reverse=True)
+    track(RANK, result["raw"])
+    if result["parsed"] is None:
+        raise ValueError(f"rank could not parse the model output: {result['parsing_error']}")
+    jobs = sorted(result["parsed"].jobs, key=lambda j: j.score, reverse=True)
     print(f"rank took {time.time() - start:.1f}s") # For troubleshooting
     return {"jobs": jobs}
 
@@ -62,6 +69,11 @@ def rank(state: JobState) -> dict:
 def researcher(state: JobState) -> dict:
     messages = state["messages"]
     new_messages = []
+# Checks first if it is over budget
+    try:
+        check_budget(RESEARCHER)
+    except BudgetExceeded as e:
+        return {"messages": [AIMessage(content=f"Company research skipped. {e}")]}
 
     if not messages:
         top5 = state["jobs"][:5]
@@ -77,6 +89,7 @@ def researcher(state: JobState) -> dict:
         new_messages = [task]
 
     response = llm.invoke([SYSTEM] + messages)
+    track(RESEARCHER, response)
     return {"messages": new_messages + [response]}
 
 
@@ -114,7 +127,12 @@ def report(state:JobState) -> dict:
         "Return the markdown directly. Do not wrap it in a code block.\n\n"
         f"# Jobs\n{job_lines}\n\n# Company research\n{research}"
     )
-    text = report_llm.invoke(prompt).text
+    response = report_llm.invoke(prompt)
+    track(REPORT, response)
+    text = response.text
+    if research.startswith("Company research skipped"):
+        text = f"> ⚠️ {research}\n\n{text}"
+    text = text + "\n\n" + cost_summary()
     mark_sent(jobs)
     return {"report": text}
 
@@ -156,9 +174,10 @@ t("graph compiled") # For troubleshooting
 ############# TEMPORARY STARTER FOR THE APP ########################
 if __name__ == "__main__":
     alert = Path("data/sample_alert.txt").read_text(encoding="utf-8")
-    result = graph.invoke({"alert_text": alert})
+    result = graph.invoke({"alert_text": alert}, config=trace_config("local-test", ["test"]))
     for job in result["jobs"]:
         print(f"{job.score}/10  {job.title} · {job.company} · {job.location}")
         print(f"      {job.reason}\n")
     print(result["report"])
+    get_client().flush() # always send the trace, also when the run fails
     t("finished")  # For troubleshooting

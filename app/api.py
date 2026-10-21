@@ -3,6 +3,7 @@ import secrets
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from app.graph import graph
+from app.tracing import trace_config
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
 
@@ -30,5 +31,5 @@ def health():
 @app.post("/run", response_model=RunResponse)
 def run(req: RunRequest, x_api_key: str = Header()):
     check_key(x_api_key)
-    result = graph.invoke({"alert_text": req.alert_text})
+    result = graph.invoke({"alert_text": req.alert_text}, config=trace_config("morning-jobs", ['job-search'])) # Hardcoded for now
     return RunResponse(report=result["report"], new_jobs=len(result["jobs"]))

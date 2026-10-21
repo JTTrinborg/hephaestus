@@ -17,3 +17,22 @@ def get_llm(provider: str | None = None):
         )
     from langchain_anthropic import ChatAnthropic
     return ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL"))
+
+
+PRICES = {
+    "claude-haiku-5-5": (0.10, 0.50),
+    "qwen3": (0.0, 0.0),
+}
+
+# Monthly limit in USD. None means no limit. As OLLAMA runs rank and report, it is not necessary to have a guard for them
+BUDGETS = {
+    "researcher": float(os.getenv("RESEARCHER_BUDGET_USD", "2.0")),
+    "rank": None,
+    "report": None,
+}
+
+def price_for(model: str) -> tuple[float, float]:
+    for name, price in PRICES.items():
+        if model.startswith(name):
+            return price
+    return (0.0, 0.0)
