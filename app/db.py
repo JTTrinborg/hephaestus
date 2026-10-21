@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS seen_jobs (
     title      TEXT,
     company    TEXT,
     url        TEXT,
+    location   TEXT,
+    score      INT,
+    reason     TEXT,
     first_seen TIMESTAMPTZ DEFAULT now()
 );
 """
@@ -68,13 +71,13 @@ def filter_new(jobs: list[Job]) -> list[Job]:
 
 
 def mark_sent(jobs: list[Job]) -> None:
-    """Store jobs so they are never sent again."""
+    """Store jobs so they are never sent again, and so agents can look them up."""
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.executemany(
-                "INSERT INTO seen_jobs (job_key, title, company, url) VALUES (%s, %s, %s, %s) "
-                "ON CONFLICT (job_key) DO NOTHING",
-                [(_key(j), j.title, j.company, j.url) for j in jobs],
+                "INSERT INTO seen_jobs (job_key, title, company, url, location, score, reason) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (job_key) DO NOTHING",
+                [(_key(j), j.title, j.company, j.url, j.location, j.score, j.reason) for j in jobs],
             )
 
 
