@@ -4,7 +4,7 @@
 
 In Greek myth, Hephaestus forged golden automatons that worked on their own. This project forges AI agents.
 
-**Status:** Milestones 0 to 3 of 7 done. Two systems run side by side. A daily job-search workflow reads my SEEK job alerts, ranks every job against my profile, researches the best companies and emails me a report. A team of agents led by a supervisor takes open tasks, such as finding my best jobs and drafting a cover letter. Every run is traced in a self-hosted Langfuse, every model call is costed, and each agent has a monthly budget it cannot exceed.
+**Status:** Milestones 3 of 7 done. Two systems run side by side. A daily job-search workflow reads my SEEK job alerts, ranks every job against my profile, researches the best companies and emails me a report. A team of agents led by a supervisor takes open tasks, such as finding my best jobs and drafting a cover letter. Every run is traced in a self-hosted Langfuse, every model call is costed, and each agent has a monthly budget it cannot exceed.
 
 ---
 
