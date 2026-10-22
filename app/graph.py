@@ -15,6 +15,7 @@ from app.models import Job, JobList
 from app.db import filter_new, mark_sent, cost_summary
 from app.budget import BudgetExceeded, check_budget
 from app.usage import track
+from app.profile import PROFILE, SKILLS_TEXT
 t("imports done") # For troubleshooting
 
 
@@ -30,7 +31,7 @@ DEDUPE = "dedupe"
 REPORT = "report"
 report_llm = get_llm("ollama")
 SYSTEM = SystemMessage(content="You are an expert job researcher. Give me the answer short and consice. Write like a caveman")
-PROFILE = Path("data/profile.md").read_text(encoding="utf-8")
+
 
 
 class JobState(TypedDict):
@@ -54,7 +55,7 @@ def rank(state: JobState) -> dict:
         "Extract every job from the job alert below and score each one against my profile.\n"
         "Copy title, company, location and URL exactly as written in the alert. Never invent a URL. "
         "If a job has no URL, leave it empty.\n\n"
-        f"# My profile\n{PROFILE}\n\n# Job alert\n{state['alert_text']}"
+        f"# My profile\n{PROFILE}\n\n# My skills\n{SKILLS_TEXT}\n\n# Job alert\n{state['alert_text']}"
     )
     result = rank_llm.invoke(prompt)
     track(RANK, result["raw"])
