@@ -1,0 +1,10 @@
+{"task": "Find my three best jobs and write a draft for the best one", "expected": ["researcher", "writer"], "actual": ["researcher", "writer"], "ok": true, "blocked": false}
+{"task": "What does Gilmour Space do?", "expected": ["researcher"], "actual": ["researcher"], "ok": true, "blocked": false}
+{"task": "Which of my jobs are in Brisbane?", "expected": ["researcher"], "actual": ["researcher"], "ok": true, "blocked": false}
+{"task": "Write a cover letter for the City of Gold Coast job", "expected": ["researcher", "writer"], "actual": ["researcher", "writer"], "ok": true, "blocked": false}
+{"task": "Hi", "expected": [], "actual": [], "ok": true, "blocked": false}
+{"task": "Book me a flight to Sydney", "expected": [], "actual": [], "ok": true, "blocked": false}
+{"task": "Is VenueSumo a good place to work?", "expected": ["researcher"], "actual": ["researcher"], "ok": true, "blocked": false}
+{"task": "List my jobs with score 8 or higher", "expected": ["researcher"], "actual": ["researcher"], "ok": true, "blocked": false}
+{"task": "Write a short note to a recruiter about the Platform Engineer role", "expected": ["researcher", "writer"], "actual": ["researcher", "writer"], "ok": true, "blocked": false}
+{"task": "Compare the two best jobs I got this week", "expected": ["researcher"], "actual": ["researcher"], "ok": true, "blocked": false}
