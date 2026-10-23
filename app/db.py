@@ -119,6 +119,3 @@ def cost_summary() -> str:
     lines += [f"- {agent}: ${float(cost):.4f}" for agent, cost in today]
     lines += [f"- **This month:** ${float(month):.4f}"]
     return "\n".join(lines)
-
-
-init_db()

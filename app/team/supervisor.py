@@ -3,6 +3,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 from app.config import get_llm
 from app.usage import track
+import os
 
 
 ############# SUPERVISOR AGENT FILE ##################################
@@ -33,7 +34,7 @@ SYSTEM = SystemMessage(content=(
     "Task: Good morning -> FINISH\n"
     "Task: Order a pizza -> FINISH"
 ))
-llm = get_llm("ollama").with_structured_output(Route, include_raw=True)
+llm = get_llm(os.getenv("SUPERVISOR_PROVIDER", "ollama")).with_structured_output(Route, include_raw=True)
 
 
 def supervisor(state: dict) -> dict:
