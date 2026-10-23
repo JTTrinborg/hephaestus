@@ -9,6 +9,7 @@ SOURCES = {
 
 def split_alert(text: str, source: str = "seek") -> list[dict]:
     """Split a job alert into one chunk per job. Each chunk ends where its link starts."""
+    text = text.replace("\\n", "\n")  
     chunks, start, seen = [], 0, set()
     for match in re.finditer(SOURCES[source], text):
         url = match.group(0)

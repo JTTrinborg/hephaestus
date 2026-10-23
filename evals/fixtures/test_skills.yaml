@@ -1,0 +1,17 @@
+skills:
+  - name: AWS
+    category: Cloud
+    rating: 7
+    used: Serverless website with Lambda, S3 and CloudFront
+  - name: Microsoft 365
+    category: Infrastructure
+    rating: 8
+    used: Supported 80 staff at Brisbane City Library
+  - name: Python
+    category: Programming
+    rating: 5
+    used: Small scripts in the student project
+  - name: Kubernetes
+    category: DevOps
+    rating: 2
+    used:

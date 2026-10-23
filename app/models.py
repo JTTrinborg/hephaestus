@@ -18,8 +18,8 @@ class JobList(BaseModel):
 
 
 class JobInfo(BaseModel):
-    title: str
-    company: str
-    location: str
-    score: Field(ge=1, le=10)
+    title_line: int
+    company_line: int
+    location_line: int
+    score: int = Field(ge=1, le=10)
     reason: str
