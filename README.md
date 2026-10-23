@@ -309,6 +309,8 @@ Interactive docs at `http://127.0.0.1:8000/docs`.
 
 **Local models make different mistakes.** Qwen3 sometimes swaps job title and company, or replaces the title with my search term. These cases are being collected as test data for evals.
 
+**Alive is not the same as ready.** The morning job failed because Ollama only listened on `127.0.0.1`, so the API container could not reach it. The trigger script did not retry, because the n8n webhook answered at once and the failure happened later. A `/ready` endpoint now checks that the API can reach Ollama from inside the container, and the script only starts the workflow when it answers.
+
 ---
 
 ## Roadmap
