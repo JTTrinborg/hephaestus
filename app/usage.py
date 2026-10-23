@@ -1,11 +1,14 @@
 from app.config import price_for
 from app.db import log_usage
+import os
 
 ########## FILE TO STORE USAGE OF TOKENS AND COST FOR THE MODELS  ###############
 
 
 def track(agent: str, message) -> None:
     """Store tokens and cost for one model response."""
+    if not os.getenv("DATABASE_URL"):
+        return # Makes it possible to run even tho there are no DB. This is needed for the CI pipeline
     usage = message.usage_metadata or {}
     meta = message.response_metadata or {}
     model = meta.get("model_name") or meta.get("model") or "unknown"

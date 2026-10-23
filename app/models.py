@@ -15,3 +15,11 @@ class Job(BaseModel):
 
 class JobList(BaseModel):
     jobs: list[Job]
+
+
+class JobInfo(BaseModel):
+    title_line: int
+    company_line: int
+    location_line: int
+    score: int = Field(ge=1, le=10)
+    reason: str

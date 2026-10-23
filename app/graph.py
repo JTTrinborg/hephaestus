@@ -11,11 +11,12 @@ from langfuse import get_client
 from app.tracing import trace_config
 from app.config import get_llm
 from app.tools.search import search_tool
-from app.models import Job, JobList
 from app.db import filter_new, mark_sent, cost_summary
 from app.budget import BudgetExceeded, check_budget
 from app.usage import track
 from app.profile import PROFILE, SKILLS_TEXT
+from app.models import Job, JobInfo
+from app.tools.alerts import split_alert
 t("imports done") # For troubleshooting
 
 
@@ -29,8 +30,12 @@ RESEARCHER = "researcher"
 TOOLS = "tools"
 DEDUPE = "dedupe"
 REPORT = "report"
-report_llm = get_llm("ollama")
 SYSTEM = SystemMessage(content="You are an expert job researcher. Give me the answer short and consice. Write like a caveman")
+tools = [search_tool]
+llm = get_llm("anthropic").bind_tools(tools)
+report_llm = get_llm("ollama")
+rank_llm = get_llm("ollama").with_structured_output(JobInfo, include_raw=True)
+
 
 
 
@@ -41,29 +46,35 @@ class JobState(TypedDict):
     report: str
 
 
-tools = [search_tool]
-llm = get_llm("anthropic").bind_tools(tools)
-rank_llm = get_llm("ollama").with_structured_output(JobList, include_raw=True)
-
-
 
 
 ######## RANK NODE #####################
 def rank(state: JobState) -> dict:
     start = time.time() # For troubleshooting
-    prompt = (
-        "Extract every job from the job alert below and score each one against my profile.\n"
-        "Copy title, company, location and URL exactly as written in the alert. Never invent a URL. "
-        "If a job has no URL, leave it empty.\n\n"
-        f"# My profile\n{PROFILE}\n\n# My skills\n{SKILLS_TEXT}\n\n# Job alert\n{state['alert_text']}"
-    )
-    result = rank_llm.invoke(prompt)
-    track(RANK, result["raw"])
-    if result["parsed"] is None:
-        raise ValueError(f"rank could not parse the model output: {result['parsing_error']}")
-    jobs = sorted(result["parsed"].jobs, key=lambda j: j.score, reverse=True)
+    jobs = []
+    for chunk in split_alert(state["alert_text"]):
+        lines = [l.strip() for l in chunk["text"].splitlines() if l.strip() and l.strip() != "logo"][-15:]
+        numbered = "\n".join(f"{i}: {line}" for i, line in enumerate(lines))
+        prompt = (
+            "Score one job against my profile.\n\n"
+            f"# My profile\n{PROFILE}\n\n# My skills\n{SKILLS_TEXT}\n\n"
+            "# Numbered lines before the job link\n"
+            "The last job in these lines belongs to the link. "
+            "Give the line numbers of its title, company and location. "
+            "Email subjects and introductions are never the title.\n\n"
+            f"{numbered}"
+        )
+        result = rank_llm.invoke(prompt)
+        track(RANK, result["raw"])
+        info = result["parsed"]
+        def pick(i:int) -> str:
+            return lines[i] if info and 0 <= i < len(lines) else "(could not read)"
+        if info is None:
+            jobs.append(Job(title="(could not read)", company="", location="", url=chunk["url"], score=1, reason="Model output could not be parsed"))
+            continue
+        jobs.append(Job(title=pick(info.title_line), company=pick(info.company_line), location=pick(info.location_line), url=chunk["url"], score=info.score, reason=info.reason))
     print(f"rank took {time.time() - start:.1f}s") # For troubleshooting
-    return {"jobs": jobs}
+    return {"jobs": sorted(jobs, key=lambda j: j.score, reverse= True)}
 
 
 ######## RESEARCHER NODE #####################
