@@ -6,6 +6,7 @@ from app.graph import graph
 from app.tracing import trace_config
 from langgraph.errors import GraphRecursionError
 from app.team.graph import run_task
+import urllib.request
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
 
@@ -25,6 +26,15 @@ def check_key(x_api_key: str) -> None:
     expected = os.getenv("FASTAPI_KEY")
     if not expected or not secrets.compare_digest(x_api_key, expected):
         raise HTTPException(status_code=401, detail="Invalid API key")
+
+@app.get("/ready")
+def ready():
+    """Ready only when the API can reach Ollama."""
+    try:
+        urllib.request.urlopen(os.getenv("OLLAMA_HOST", "http://localhost:11434"), timeout=3)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Ollama not reachable")
+    return {"status": "ready"}
 
 @app.get("/health")
 def health():
