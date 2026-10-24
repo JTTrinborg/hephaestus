@@ -33,11 +33,32 @@ CREATE TABLE IF NOT EXISTS usage (
 );
 """
 
+########################## DATABASE FOR THE AGENTS #############################
+CREATE_AGENTS = """
+CREATE TABLE IF NOT EXISTS agents (
+    name          TEXT PRIMARY KEY,
+    description   TEXT NOT NULL,
+    system_prompt TEXT NOT NULL,
+    provider      TEXT NOT NULL,
+    tools         TEXT[] NOT NULL DEFAULT '{}',
+    uses_profile  BOOLEAN NOT NULL DEFAULT false,
+    budget_usd    NUMERIC(8, 2),
+    active        BOOLEAN NOT NULL DEFAULT true,
+    updated_at    TIMESTAMPTZ DEFAULT now()
+);
+"""
+
+
+
+
+
+
 #DB Connection
 def _connect():
     conn = psycopg.connect(os.getenv("DATABASE_URL"))
     conn.execute(CREATE_TABLE)
     conn.execute(CREATE_USAGE)
+    conn.execute(CREATE_AGENTS)
     return conn
 
 def _key(job: Job) -> str:
