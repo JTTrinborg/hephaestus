@@ -31,10 +31,11 @@ def run_task(task: str, config: dict | None = None) -> dict:
 
 
 
-# picks the answer from the agent that worked last
+# Picks the answer from the agent that worked last
 def final_answer(result: dict) -> str:
     """The result from the last agent that worked."""
     worked = [line.split(":")[0] for line in result["route_log"] if not line.startswith("FINISH")]
+    return result["results"][worked[-1]] if worked else "Nothing to do."
 
 
 

@@ -5,6 +5,7 @@ from app.profile import PROFILE, SKILLS_TEXT
 from app.registry import AgentSpec
 from app.tools.registry import TOOLS
 from app.db import get_setting, month_cost
+from app.usage import track
 
 ############## THE FACTORY FILE THAT BUILDS AND RUNS THE AGENTS ###################
 

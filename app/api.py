@@ -6,6 +6,8 @@ from app.graph import graph
 from app.tracing import trace_config
 from langgraph.errors import GraphRecursionError
 from app.team.graph import final_answer, run_task
+from app.registry import AgentSpec, list_agents, upsert_agent
+from app.tools.registry import TOOLS
 import urllib.request
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
@@ -19,6 +21,10 @@ class RunRequest(BaseModel):
 class RunResponse(BaseModel):
     report: str
     new_jobs: int
+
+# The body for turning an agent on or off
+class ActiveRequest(BaseModel):
+    active: bool
 
 
 def check_key(x_api_key: str) -> None:
@@ -67,3 +73,38 @@ def task(req: TaskRequest, x_api_key: str = Header()):
         answer=final_answer(result),
         route=result["route_log"],
     )
+
+
+
+########################## CODE FOR SAVE, CHANGE OR TURNING OFF AN AGENT WITH API #################################
+# List all agents, also those turned off
+@app.get("/agents", response_model=list[AgentSpec])
+def get_agents(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_agents(active_only=False)
+
+
+# Creates or changes an agent
+@app.put("/agents/{name}", response_model=AgentSpec)
+def put_agent(name: str, spec: AgentSpec, x_api_key: str = Header()):
+    check_key(x_api_key)
+    if spec.name != name:
+        raise HTTPException(status_code=400, detail="Name in the URL and the body must match")
+    unknown= [t for t in spec.tools if t not in TOOLS]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown tools: {unknown}")
+    upsert_agent(spec)
+    return spec
+
+
+
+# Turns an agent on or off
+@app.patch("/agents/{name}", response_model=AgentSpec)
+def set_active(name: str, req: ActiveRequest, x_api_key: str = Header()):
+    check_key(x_api_key)
+    spec = next((s for s in list_agents(active_only=False) if s.name == name), None)
+    if spec is None:
+        raise HTTPException(status_code=404, detail="No agent with that name")
+    spec.active = req.active
+    upsert_agent(spec)
+    return spec
