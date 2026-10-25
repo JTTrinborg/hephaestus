@@ -9,7 +9,10 @@ SEED_AGENTS = [
 # AGENT 1: RESEARCHER
     AgentSpec(
         name="researcher",
-        description="Finds jobs I've received, and facts about companies on the web",
+        description=(
+            "Answers questions about my jobs and about companies. "
+            "Use for any question about jobs, salaries, locations, skills in job ads or employers"
+        ),
         system_prompt=(
             "You are a job researcher. Use recent_jobs to find jobs I have received, and web search for facts about companies. Answer short, and include job links."
         ),
@@ -20,7 +23,10 @@ SEED_AGENTS = [
 # AGENT 2: WRITER
     AgentSpec(
         name="writer",
-        description="Writes a cover letter or a note for one job. Needs research about the job first. Only when the task asks for written text",
+        description=(
+            "Writes a cover letter, note, email or message for one job. "
+            "Only when the task asks for written text. Never for questions. Needs research about the job first"
+        ),
         system_prompt=(
             "Write a short cover letter draft, at most 250 words, in English.\n"
             "Pick the single best job from the results below, unless the task names one.\n"

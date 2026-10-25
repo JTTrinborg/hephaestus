@@ -11,7 +11,7 @@ def get_llm(provider: str | None = None):
         from langchain_ollama import ChatOllama
         return ChatOllama(
             model=os.getenv("OLLAMA_MODEL"),
-            base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+            base_url=os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"),
             num_ctx=16384,
             reasoning=False,
         )

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from app.graph import graph
 from app.tracing import trace_config
 from langgraph.errors import GraphRecursionError
-from app.team.graph import run_task
+from app.team.graph import final_answer, run_task
 import urllib.request
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
@@ -31,7 +31,7 @@ def check_key(x_api_key: str) -> None:
 def ready():
     """Ready only when the API can reach Ollama."""
     try:
-        urllib.request.urlopen(os.getenv("OLLAMA_HOST", "http://localhost:11434"), timeout=3)
+        urllib.request.urlopen(os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"), timeout=3)
     except Exception:
         raise HTTPException(status_code=503, detail="Ollama not reachable")
     return {"status": "ready"}
@@ -64,5 +64,6 @@ def task(req: TaskRequest, x_api_key: str = Header()):
     except GraphRecursionError:
         raise HTTPException(status_code=508, detail="The team went in circles and were stopped")
     return TaskResponse(
-        answer = result["draft"] or result["research"] or "Nothing to do.", route = result["route_log"],
+        answer=final_answer(result),
+        route=result["route_log"],
     )
