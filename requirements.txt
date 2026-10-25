@@ -1,6 +1,7 @@
 langgraph
 langfuse
-#langgraph-checkpoint-postgres     ### When agents is going to start remembering
+langchain-typesafe
+#langgraph-checkpoint-postgres
 langchain-anthropic
 langchain-ollama
 python-dotenv

@@ -17,3 +17,14 @@ def track(agent: str, message) -> None:
     price_in, price_out = price_for(model)
     cost = (tokens_in * price_in + tokens_out * price_out) / 1_000_000
     log_usage(agent, model, tokens_in, tokens_out, cost)
+
+
+
+
+# Stores tokens and cost when the answer is not a normal model message, for example from jev
+def track_tokens(agent: str, model: str, tokens_in: int, tokens_out: int = 0) -> None:
+    if not os.getenv("DATABASE_URL"):
+        return
+    price_in, price_out = price_for(model)
+    cost = (tokens_in * price_in + tokens_out * price_out) / 1_000_000
+    log_usage(agent, model, tokens_in, tokens_out, cost)

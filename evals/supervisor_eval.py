@@ -14,7 +14,9 @@ CASES = Path("evals/supervisor_cases.jsonl")
 rows = [json.loads(line) for line in CASES.read_text(encoding="utf-8").splitlines() if line.strip()]
 hits = 0
 start = time.perf_counter()
-supervisor = build_supervisor(SEED_AGENTS)
+# Reads the model to test from the command, for example jev
+provider = sys.argv[1] if len(sys.argv) > 1 else None
+supervisor = build_supervisor(SEED_AGENTS, provider)
 
 
 

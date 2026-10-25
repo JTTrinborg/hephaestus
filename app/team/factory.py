@@ -4,7 +4,7 @@ from app.db import month_cost
 from app.profile import PROFILE, SKILLS_TEXT
 from app.registry import AgentSpec
 from app.tools.registry import TOOLS
-from app.usage import track
+from app.db import get_setting, month_cost
 
 ############## THE FACTORY FILE THAT BUILDS AND RUNS THE AGENTS ###################
 
@@ -19,9 +19,10 @@ def build_agent(spec: AgentSpec):
     llm = get_llm(spec.provider)
     if tools:
         llm = llm.bind_tools(tools)
-
     system = spec.system_prompt
-    if spec.uses_profile:
+# Adds the profile only if the agent asks for it and the platform setting allows this provider
+    local_only = get_setting("profile_local_only", "true") == "true"
+    if spec.uses_profile and not (local_only and spec.provider != "ollama"):
         system += f"\n\n# My profile\n{PROFILE}\n\n# My skills\n{SKILLS_TEXT}"
 
 # Runs the agent on the task and returns its answer
