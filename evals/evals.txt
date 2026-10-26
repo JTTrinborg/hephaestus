@@ -17,3 +17,5 @@ M4. Rank eval after making rank having to point to the title, run 2: 0 problems
 M4. Rank eval after making rank having to point to the title, run 3: 0 problems
 M4. Writer eval baseline: 0/3 passed, 6 real invented claims, 1 judge error
 M4. Writer eval, honesty rules: 1/3 passed, 2 invented, 8 exaggerated
+
+M5. Supervisor eval, dynamic: 26/30, then 24/30, then 29/30 after removing done agents from the choices in code

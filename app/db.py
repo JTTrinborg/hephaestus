@@ -33,11 +33,73 @@ CREATE TABLE IF NOT EXISTS usage (
 );
 """
 
+########################## DATABASE FOR THE AGENTS #############################
+CREATE_AGENTS = """
+CREATE TABLE IF NOT EXISTS agents (
+    name          TEXT PRIMARY KEY,
+    description   TEXT NOT NULL,
+    system_prompt TEXT NOT NULL,
+    provider      TEXT NOT NULL,
+    tools         TEXT[] NOT NULL DEFAULT '{}',
+    uses_profile  BOOLEAN NOT NULL DEFAULT false,
+    budget_usd    NUMERIC(8, 2),
+    active        BOOLEAN NOT NULL DEFAULT true,
+    updated_at    TIMESTAMPTZ DEFAULT now()
+);
+"""
+
+
+############################# DATABASE TABLE FOR SETTINGS ##################################
+CREATE_SETTINGS = """
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+"""
+
+
+######################## DATABASE FOR THE TASK QUEUE (One row per task) #############################
+CREATE_TASKS = """
+CREATE TABLE IF NOT EXISTS tasks (
+    id          SERIAL PRIMARY KEY,
+    kind        TEXT NOT NULL DEFAULT 'team',
+    input       TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'new',
+    result      TEXT,
+    route       TEXT[],
+    error       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    started_at  TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ
+);
+"""
+
+
+############################# DATABASE FOR ROUTINE JOBS WITH A TIME OF DAY #################################
+CREATE_ROUTINES = """
+CREATE TABLE IF NOT EXISTS routines (
+    name     TEXT PRIMARY KEY,
+    kind     TEXT NOT NULL,
+    target   TEXT NOT NULL,
+    daily_at TIME NOT NULL,
+    active   BOOLEAN NOT NULL DEFAULT true,
+    last_run DATE
+);
+"""
+
+
+
+
+
 #DB Connection
 def _connect():
     conn = psycopg.connect(os.getenv("DATABASE_URL"))
     conn.execute(CREATE_TABLE)
     conn.execute(CREATE_USAGE)
+    conn.execute(CREATE_AGENTS)
+    conn.execute(CREATE_SETTINGS)
+    conn.execute(CREATE_TASKS)
+    conn.execute(CREATE_ROUTINES)
     return conn
 
 def _key(job: Job) -> str:
@@ -119,3 +181,26 @@ def cost_summary() -> str:
     lines += [f"- {agent}: ${float(cost):.4f}" for agent, cost in today]
     lines += [f"- **This month:** ${float(month):.4f}"]
     return "\n".join(lines)
+
+
+
+# Reads a setting or uses the default if it is missing
+def get_setting(key: str, default: str) -> str:
+    try:
+        with _connect() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchall()
+        return row[0] if row else default
+# If no DB, such as in CI
+    except Exception:
+        return default
+
+
+
+# Saves a setting, new or changed
+def set_setting(key: str, value: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            (key, value),
+        )

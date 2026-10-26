@@ -2,7 +2,8 @@ import json
 import sys
 import time
 from pathlib import Path
-from app.team.supervisor import supervisor
+from app.seed_agents import SEED_AGENTS
+from app.team.supervisor import build_supervisor
 
 
 ############ EVAL FILE FOR THE SUPERVISOR AGENT ##########################
@@ -13,16 +14,21 @@ CASES = Path("evals/supervisor_cases.jsonl")
 rows = [json.loads(line) for line in CASES.read_text(encoding="utf-8").splitlines() if line.strip()]
 hits = 0
 start = time.perf_counter()
+# Reads the model to test from the command, for example jev
+provider = sys.argv[1] if len(sys.argv) > 1 else None
+supervisor = build_supervisor(SEED_AGENTS, provider)
 
 
 
 for row in rows:
 # Creates a fake state to test the supervisor agent
-    state = {
-        "task": row["task"],
-        "research": "done" if row["research"] else "",
-        "draft": "done" if row["draft"] else "",
-    }
+    results = {}
+    if row["research"]:
+        results["researcher"] = "done"
+    if row["draft"]:
+        results["writer"] = "done"
+    state = {"task": row["task"], "results": results}
+
     result = supervisor(state)
     got = result["next"]
     if 'blocked repeat' in result["route_log"][0]:
