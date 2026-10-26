@@ -4,7 +4,7 @@
 
 In Greek myth, Hephaestus forged golden automatons that worked on their own. This project forges AI agents.
 
-**Status:** Milestones 0 to 4 of 8 done, M5 in its final test. Hephaestus is now a platform, not a single program. Agents are rows in a database, not files, and a new agent can be created with one API call and used on the next task without changing any code. Tasks go into a queue and are picked up by a worker. Fixed jobs, such as the daily job search that emails me a report, run as routines with their own time of day. Every run is traced in a self-hosted Langfuse, every model call is costed, each agent has a budget it cannot exceed, and evals measure whether the agents get it right.
+**Status:** Milestones 5 of 8 done, M5 in its final test. Hephaestus is now a platform, not a single program. Agents are rows in a database, not files, and a new agent can be created with one API call and used on the next task without changing any code. Tasks go into a queue and are picked up by a worker. Fixed jobs, such as the daily job search that emails me a report, run as routines with their own time of day. Every run is traced in a self-hosted Langfuse, every model call is costed, each agent has a budget it cannot exceed, and evals measure whether the agents get it right.
 
 ---
 
@@ -413,7 +413,7 @@ Settings stored in Postgres, changed without restart.
 | M2 | Observability and cost control with Langfuse | ✅ |
 | M3 | Team of agents with a supervisor | ✅ |
 | M4 | Evals for supervisor, rank and writer, run locally | ✅ |
-| M5 | Agent registry, task queue, worker and routines | 🔨 final three-morning test |
+| M5 | Agent registry, task queue, worker and routines | ✅ |
 | M6 | Dashboard | |
 | M7 | MCP tools, human in the loop, guardrails | |
 | M8 | Evals in CI with GitHub Actions and branch protection | |
