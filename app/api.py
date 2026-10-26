@@ -8,6 +8,7 @@ from langgraph.errors import GraphRecursionError
 from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
+from app.taskqueue import enqueue, get_task
 import urllib.request
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
@@ -108,3 +109,22 @@ def set_active(name: str, req: ActiveRequest, x_api_key: str = Header()):
     spec.active = req.active
     upsert_agent(spec)
     return spec
+
+
+################################## CODE FOR TASKS ####################################################
+# Puts a task in the queue and returns its number at once
+@app.post("/tasks")
+def create_task(req: TaskRequest, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return {"id" : enqueue(req.task)}
+
+
+
+# Shows the status and answer for one task
+@app.get("/tasks/{task_id}")
+def read_task(task_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    task = get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="No task with that ID")
+    return task

@@ -58,6 +58,22 @@ CREATE TABLE IF NOT EXISTS settings (
 """
 
 
+######################## DATABASE FOR THE TASK QUEUE (One row per task) #############################
+CREATE_TASKS = """
+CREATE TABLE IF NOT EXISTS tasks (
+    id          SERIAL PRIMARY KEY,
+    kind        TEXT NOT NULL DEFAULT 'team',
+    input       TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'new',
+    result      TEXT,
+    route       TEXT[],
+    error       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    started_at  TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ
+);
+"""
+
 
 
 
@@ -69,6 +85,7 @@ def _connect():
     conn.execute(CREATE_USAGE)
     conn.execute(CREATE_AGENTS)
     conn.execute(CREATE_SETTINGS)
+    conn.execute(CREATE_TASKS)
     return conn
 
 def _key(job: Job) -> str:

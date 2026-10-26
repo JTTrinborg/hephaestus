@@ -22,6 +22,20 @@ services:
       TZ: Australia/Brisbane
     volumes:
       - heph-n8n-data:/home/node/.n8n
+  worker:
+    build: .
+    container_name: heph-worker
+    restart: unless-stopped
+    command: python -m app.worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/hephaestus?connect_timeout=5
+      OLLAMA_URL: http://host.docker.internal:11434
+      LANGFUSE_HOST: http://host.docker.internal:3000
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      - db
   api:
     build: .
     container_name: heph-api
