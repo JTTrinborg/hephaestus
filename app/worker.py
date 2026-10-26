@@ -4,6 +4,7 @@ import psycopg
 from app.taskqueue import claim_next, fail, finish
 from app.team.graph import final_answer, run_task
 from app.tracing import trace_config
+from app.routines import run_due_routines
 
 
 ########################### FILE FOR THE WORKERS #######################################
@@ -28,6 +29,7 @@ def main() -> None:
     listen.execute("LISTEN new_task")
 # Sleeps until a new task arrives, or at most 60 seconds, then works through the queue
     while True:
+        run_due_routines()
         job = claim_next()
         if job is None:
             for _ in listen.notifies(timeout=60, stop_after=1):

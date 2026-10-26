@@ -75,6 +75,19 @@ CREATE TABLE IF NOT EXISTS tasks (
 """
 
 
+############################# DATABASE FOR ROUTINE JOBS WITH A TIME OF DAY #################################
+CREATE_ROUTINES = """
+CREATE TABLE IF NOT EXISTS routines (
+    name     TEXT PRIMARY KEY,
+    kind     TEXT NOT NULL,
+    target   TEXT NOT NULL,
+    daily_at TIME NOT NULL,
+    active   BOOLEAN NOT NULL DEFAULT true,
+    last_run DATE
+);
+"""
+
+
 
 
 
@@ -86,6 +99,7 @@ def _connect():
     conn.execute(CREATE_AGENTS)
     conn.execute(CREATE_SETTINGS)
     conn.execute(CREATE_TASKS)
+    conn.execute(CREATE_ROUTINES)
     return conn
 
 def _key(job: Job) -> str:

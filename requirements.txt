@@ -9,3 +9,4 @@ langchain-tavily
 fastapi   
 uvicorn    
 psycopg[binary]
+tzdata
