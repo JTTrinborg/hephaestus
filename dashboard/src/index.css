@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Marble, the light theme: marble white, stone ink, bronze lines, royal red accent */
+:root,
+[data-theme="marble"] {
+  --page: 244 241 236;
+  --surface: 252 251 248;
+  --sunken: 236 231 224;
+  --line: 214 202 186;
+  --ink: 38 31 28;
+  --muted: 105 94 86;
+  --accent: 150 22 28;
+  --accent-ink: 255 255 255;
+  --ember: 214 84 30;
+  --ok: 37 115 64;
+  --warn: 160 98 10;
+  --bad: 180 30 30;
+  --idle: 112 105 100;
+  color-scheme: light;
+}
+
+/* Forge, the dark theme: stone and bronze, molten orange accent */
+[data-theme="forge"] {
+  --page: 23 19 17;
+  --surface: 35 29 25;
+  --sunken: 29 24 21;
+  --line: 78 62 48;
+  --ink: 238 230 220;
+  --muted: 170 157 144;
+  --accent: 236 128 48;
+  --accent-ink: 30 18 8;
+  --ember: 240 132 48;
+  --ok: 116 196 136;
+  --warn: 232 176 80;
+  --bad: 240 110 98;
+  --idle: 156 146 136;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    @apply bg-page text-ink font-sans antialiased;
+  }
+  body {
+    min-height: 100vh;
+    /* Faint marble veins, drawn with gradients so there is no image to load */
+    background-image:
+      linear-gradient(115deg, transparent 0 38%, rgb(var(--line) / 0.18) 39%, transparent 41% 100%),
+      linear-gradient(160deg, transparent 0 62%, rgb(var(--line) / 0.12) 63%, transparent 65% 100%),
+      radial-gradient(ellipse at 20% 0%, rgb(var(--surface) / 0.9), transparent 60%);
+    background-attachment: fixed;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-wide;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-md border border-line bg-surface shadow-sm;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-accent-ink hover:bg-accent/90;
+  }
+  .btn-ghost {
+    @apply btn border border-line text-ink hover:bg-sunken;
+  }
+  .input {
+    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent;
+  }
+  .label {
+    @apply text-xs font-medium uppercase tracking-wider text-muted;
+  }
+}
+
+/* A working automaton glows softly, like an ember in the forge */
+.ember {
+  border-color: rgb(var(--ember) / 0.7);
+  animation: ember 2.4s ease-in-out infinite;
+}
+@keyframes ember {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgb(var(--ember) / 0.35), 0 0 14px 0 rgb(var(--ember) / 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgb(var(--ember) / 0.55), 0 0 26px 4px rgb(var(--ember) / 0.4);
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ember {
+    animation: none;
+    box-shadow: 0 0 0 1px rgb(var(--ember) / 0.5), 0 0 18px 2px rgb(var(--ember) / 0.3);
+  }
+  .pulse-dot {
+    animation: none;
+  }
+}
+
+/* Recharts draws with attributes, CSS wins over them, so charts follow the theme */
+.recharts-cartesian-axis-tick-value {
+  fill: rgb(var(--muted));
+}
+.recharts-cartesian-grid line {
+  stroke: rgb(var(--line));
+}
+
+/* Fluted columns framing the page, only where there is room for them */
+.column {
+  position: fixed;
+  top: 34px;
+  bottom: 30px;
+  z-index: 30;
+  width: 52px;
+  pointer-events: none;
+  /* Flutes, with a soft shade on the edges so the shaft reads as round */
+  background:
+    linear-gradient(90deg, rgb(var(--ink) / 0.12), transparent 25%, transparent 70%, rgb(var(--ink) / 0.16)),
+    repeating-linear-gradient(
+      90deg,
+      rgb(var(--line) / 0.7) 0 2px,
+      rgb(var(--surface)) 2px 9px,
+      rgb(var(--line) / 0.35) 9px 10px
+    );
+  border-left: 1px solid rgb(var(--line));
+  border-right: 1px solid rgb(var(--line));
+}
+/* Capital on top and base at the bottom, wider than the shaft */
+.column::before,
+.column::after {
+  content: "";
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  background: linear-gradient(rgb(var(--surface)), rgb(var(--sunken)));
+  border: 1px solid rgb(var(--line));
+}
+.column::before {
+  top: -34px;
+  height: 34px;
+  border-radius: 3px 3px 10px 10px;
+  box-shadow: inset 0 -8px 0 -4px rgb(var(--line) / 0.6), inset 0 9px 0 -4px rgb(var(--line) / 0.6);
+}
+.column::after {
+  bottom: -30px;
+  height: 30px;
+  border-radius: 8px 8px 2px 2px;
+  box-shadow: inset 0 10px 0 -5px rgb(var(--line) / 0.6);
+}
