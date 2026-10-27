@@ -3,6 +3,8 @@ import re
 import psycopg
 from app.models import Job
 from app.context import current_task
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 
 TZ = "Australia/Brisbane"
@@ -90,6 +92,18 @@ CREATE TABLE IF NOT EXISTS routines (
 
 
 
+############################ DATABASE FOR PROFILE #####################################
+CREATE_PROFILE = """
+CREATE TABLE IF NOT EXISTS profile (
+    id          INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    about       TEXT NOT NULL,
+    skills_yaml TEXT NOT NULL,
+    updated_at  TIMESTAMPTZ DEFAULT now()
+);
+"""
+
+
+
 
 
 #DB Connection
@@ -101,6 +115,7 @@ def _connect():
     conn.execute(CREATE_SETTINGS)
     conn.execute(CREATE_TASKS)
     conn.execute(CREATE_ROUTINES)
+    conn.execute(CREATE_PROFILE)
     conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS current_agent TEXT")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS results JSONB")
@@ -223,3 +238,41 @@ def daily_usage(days: int = 30) -> list[dict]:
         ).fetchall()
     keys = ["day", "agent", "calls", "input_tokens", "output_tokens", "cost_usd"]
     return [dict(zip(keys, row)) for row in rows]
+
+
+# Total cost today, this week, this month and all time, in Brisbane time
+def usage_summary() -> dict:
+    now = datetime.now(ZoneInfo("Australia/Brisbane"))
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week = today - timedelta(days=today.weekday())
+    month = today.replace(day=1)
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(cost_usd) FILTER (WHERE created_at >= %s), 0)::float, "
+            "COALESCE(SUM(cost_usd) FILTER (WHERE created_at >= %s), 0)::float, "
+            "COALESCE(SUM(cost_usd) FILTER (WHERE created_at >= %s), 0)::float, "
+            "COALESCE(SUM(cost_usd), 0)::float FROM usage",
+            (today, week, month),
+        ).fetchone()
+    return dict(zip(["today", "week", "month", "all_time"], row))
+
+
+
+# Reads my profile and skills, or None if they are not saved yet
+def get_profile_row() -> tuple[str, str] | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT about, skills_yaml FROM profile WHERE id = 1"
+        ).fetchone()
+    return (row[0], row[1]) if row else None
+
+
+# Saves my profile and skills, new or changed
+def save_profile(about: str, skills_yaml: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO profile (id, about, skills_yaml) VALUES (1, %s, %s) "
+            "ON CONFLICT (id) DO UPDATE SET about = EXCLUDED.about, "
+            "skills_yaml = EXCLUDED.skills_yaml, updated_at = now()",
+            (about, skills_yaml),
+        )

@@ -9,9 +9,11 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
-from app.db import daily_usage
+from app.db import daily_usage, usage_summary, get_profile_row, save_profile
 from app.taskqueue import list_tasks
 from app.status import agent_status
+from app.profile import from_files
+import yaml
 import urllib.request
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
@@ -29,6 +31,11 @@ class RunResponse(BaseModel):
 # The body for turning an agent on or off
 class ActiveRequest(BaseModel):
     active: bool
+
+# The body for saving my profile
+class ProfileUpdate(BaseModel):
+    about: str
+    skills_yaml: str
 
 
 def check_key(x_api_key: str) -> None:
@@ -148,6 +155,13 @@ def get_daily_usage(days: int = 30, x_api_key: str = Header()):
     return daily_usage(max(1, min(days, 365)))
 
 
+# Cost today, this week, this month and all time
+@app.get("/usage/summary")
+def get_usage_summary(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return usage_summary()
+
+
 ################# CODE FOR AGENT STATUS ######################
 # Live status for every agent, for the cards on the front page
 @app.get("/agents/status")
@@ -155,3 +169,27 @@ def get_agent_status(x_api_key: str = Header()):
     check_key(x_api_key)
     names = ["supervisor"] + [s.name for s in list_agents()]
     return agent_status(names)
+
+
+
+###################### CODE FOR PROFILE ######################
+# Shows my profile and skills as they are stored
+@app.get("/profile")
+def get_profile(x_api_key: str = Header()):
+    check_key(x_api_key)
+    about, skills = get_profile_row() or from_files()
+    return {"about": about, "skills_yaml": skills}
+
+
+# Saves my profile, if the skills are valid YAML with a skills list
+@app.put("/profile")
+def put_profile(req: ProfileUpdate, x_api_key: str = Header()):
+    check_key(x_api_key)
+    try:
+        parsed = yaml.safe_load(req.skills_yaml) or {}
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+    if not isinstance(parsed.get("skills"), list):
+        raise HTTPException(status_code=400, detail="skills_yaml must contain a list called skills")
+    save_profile(req.about, req.skills_yaml)
+    return {"saved": True}
