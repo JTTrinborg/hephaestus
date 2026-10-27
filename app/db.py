@@ -2,6 +2,7 @@ import os
 import re
 import psycopg
 from app.models import Job
+from app.context import current_task
 
 
 TZ = "Australia/Brisbane"
@@ -100,6 +101,9 @@ def _connect():
     conn.execute(CREATE_SETTINGS)
     conn.execute(CREATE_TASKS)
     conn.execute(CREATE_ROUTINES)
+    conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
+    conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS current_agent TEXT")
+    conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS results JSONB")
     return conn
 
 def _key(job: Job) -> str:
@@ -143,12 +147,13 @@ def mark_sent(jobs: list[Job]) -> None:
             )
 
 
-def log_usage(agent: str, model: str, input_tokens: int, output_tokens: int, cost: float) -> None:
+# Stores one model call, linked to the task that is running, if any
+def log_usage(agent: str, model: str, tokens_in: int, tokens_out: int, cost: float) -> None:
     with _connect() as conn:
         conn.execute(
-            "INSERT INTO usage (agent, model, input_tokens, output_tokens, cost_usd) "
-            "VALUES (%s, %s, %s, %s, %s)",
-            (agent, model, input_tokens, output_tokens, cost),
+            "INSERT INTO usage (agent, model, input_tokens, output_tokens, cost_usd, task_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (agent, model, tokens_in, tokens_out, cost, current_task.get()),
         )
 
 
@@ -204,3 +209,17 @@ def set_setting(key: str, value: str) -> None:
             "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
             (key, value),
         )
+
+
+# Sums calls, tokens and cost per agent and day, for the cost charts
+def daily_usage(days: int = 30) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT (created_at AT TIME ZONE 'Australia/Brisbane')::date AS day, agent, "
+            "COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)::float "
+            "FROM usage WHERE created_at > now() - make_interval(days => %s) "
+            "GROUP BY day, agent ORDER BY day, agent",
+            (days,),
+        ).fetchall()
+    keys = ["day", "agent", "calls", "input_tokens", "output_tokens", "cost_usd"]
+    return [dict(zip(keys, row)) for row in rows]

@@ -9,6 +9,8 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
+from app.db import daily_usage
+from app.taskqueue import list_tasks
 import urllib.request
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
@@ -128,3 +130,19 @@ def read_task(task_id: int, x_api_key: str = Header()):
     if task is None:
         raise HTTPException(status_code=404, detail="No task with that ID")
     return task
+
+
+# List the newest tasks, without the full answer
+@app.get("/tasks")
+def get_tasks(limit: int = 50, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_tasks(min(limit, 200))
+
+
+#################### CODE FOR COST #################################
+# Cost and tokens per agent and day for the last days
+@app.get("/usage/daily")
+def get_daily_usage(days: int = 30, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return daily_usage(max(1, min(days, 365)))
+

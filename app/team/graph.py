@@ -39,6 +39,14 @@ def final_answer(result: dict) -> str:
 
 
 
+# Runs one task and yelds each step as it finishes, for live progress
+def stream_task(task: str, config: dict | None = None):
+    start = {"task": task, "results": {}, "next":"", "route_log": []}
+    config = {**(config or {}), "recursion_limit": RECURSION_LIMIT}
+    yield from build_team().stream(start, config=config, stream_mode="updates")
+
+
+
 
 # Runs the team on a test task when the file is started directly
 if __name__ == "__main__":
