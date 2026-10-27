@@ -119,6 +119,7 @@ def _connect():
     conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS current_agent TEXT")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS results JSONB")
+    conn.execute("ALTER TABLE routines ADD COLUMN IF NOT EXISTS last_started_at TIMESTAMPTZ")
     return conn
 
 def _key(job: Job) -> str:

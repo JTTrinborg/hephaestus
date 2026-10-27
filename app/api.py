@@ -13,6 +13,8 @@ from app.db import daily_usage, usage_summary, get_profile_row, save_profile, ge
 from app.taskqueue import list_tasks
 from app.status import agent_status
 from app.profile import from_files
+from app.routines import list_routines, update_routine
+from datetime import time
 import yaml
 import urllib.request
 
@@ -40,6 +42,11 @@ class ProfileUpdate(BaseModel):
 # The body for changing one setting
 class SettingRequest(BaseModel):
     value: str
+
+# The body for changing a routine, both fields are optional
+class RoutineUpdate(BaseModel):
+    daily_at: time | None = None
+    active: bool | None = None
 
 
 def check_key(x_api_key: str) -> None:
@@ -225,3 +232,21 @@ def put_setting(key: str, req: SettingRequest, x_api_key: str = Header()):
         raise HTTPException(status_code=400, detail=f"Allowed values: {sorted(allowed)}")
     set_setting(key, req.value)
     return {key: req.value}
+
+
+
+################## CODE FOR ROUTINES ############################
+# Lists all routines with time of day and last run
+@app.get("/routines")
+def get_routines(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_routines()
+
+
+# Changes the time of day or turns a routine on or off
+@app.patch("/routines/{name}")
+def patch_routine(name: str, req: RoutineUpdate, x_api_key: str = Header()):
+    check_key(x_api_key)
+    if not update_routine(name, req.daily_at, req.active):
+        raise HTTPException(status_code=404, detail="No routine with that name")
+    return {"name": name, "updated": req.model_dump(exclude_none=True)}

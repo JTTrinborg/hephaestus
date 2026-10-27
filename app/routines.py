@@ -1,7 +1,7 @@
 import logging
 import os
 import urllib.request
-from datetime import datetime
+from datetime import datetime, time
 from zoneinfo import ZoneInfo
 from app.db import _connect
 
@@ -45,13 +45,37 @@ def run_due_routines() -> None:
 # Starts each due routine, and tries again later if it fails
     for name, kind, target in due:
         if not ollama_ready():
-            log.info("Routine $s is due. Waiting for Ollama", name)
+            log.info("Routine %s is due. Waiting for Ollama", name)
             return
         try:
             if kind == "webhook":
                 call_webhook(target)
             with _connect() as conn:
-                conn.execute("UPDATE routines SET last_run = %s WHERE name = %s", (now.date(), name))
+                conn.execute(
+                    "UPDATE routines SET last_run = %s, last_started_at = now() WHERE name = %s",
+                    (now.date(), name),
+                )
             log.info("Routine %s started", name)
         except Exception:
             log.exception("Routine %s failed, will retry", name)
+
+
+
+# Gets all routines, for the dashboard
+def list_routines() -> list[dict]:
+    keys = ["name", "kind", "target", "daily_at", "active", "last_run"]
+    with _connect() as conn:
+        rows = conn.execute(f"SELECT {', '.join(keys)} FROM routines ORDER BY name").fetchall()
+    return [dict(zip(keys, row)) for row in rows]
+
+
+# Changes the time of day or active for one routine, returns False if it does not exist
+def update_routine(name: str, daily_at: time | None = None, active: bool | None = None) -> bool:
+    changes = {"daily_at": daily_at, "active": active}
+    changes = {column: value for column, value in changes.items() if value is not None}
+    if not changes:
+        return True
+    sets = ", ".join(f"{column} = %s" for column in changes)
+    with _connect() as conn:
+        cursor = conn.execute(f"UPDATE routines SET {sets} WHERE name = %s", (*changes.values(), name))
+        return cursor.rowcount == 1
