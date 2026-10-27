@@ -208,7 +208,7 @@ def cost_summary() -> str:
 def get_setting(key: str, default: str) -> str:
     try:
         with _connect() as conn:
-            row = conn.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchall()
+            row = conn.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchone()
         return row[0] if row else default
 # If no DB, such as in CI
     except Exception:

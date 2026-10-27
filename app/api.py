@@ -9,7 +9,7 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
-from app.db import daily_usage, usage_summary, get_profile_row, save_profile
+from app.db import daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting
 from app.taskqueue import list_tasks
 from app.status import agent_status
 from app.profile import from_files
@@ -36,6 +36,10 @@ class ActiveRequest(BaseModel):
 class ProfileUpdate(BaseModel):
     about: str
     skills_yaml: str
+
+# The body for changing one setting
+class SettingRequest(BaseModel):
+    value: str
 
 
 def check_key(x_api_key: str) -> None:
@@ -193,3 +197,31 @@ def put_profile(req: ProfileUpdate, x_api_key: str = Header()):
         raise HTTPException(status_code=400, detail="skills_yaml must contain a list called skills")
     save_profile(req.about, req.skills_yaml)
     return {"saved": True}
+
+
+
+########################## CODE FOR SETTINGS #############################
+SETTINGS = {
+    "supervisor_provider": ({"anthropic", "ollama", "jev"}, os.getenv("SUPERVISOR_PROVIDER", "ollama")),
+    "profile_local_only": ({"true", "false"}, "true"),
+}
+
+
+# Shows the current value of every setting
+@app.get("/settings")
+def get_settings(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return {key: get_setting(key, default) for key, (_, default) in SETTINGS.items()}
+
+
+# Changes one setting, if the key and value are allowed
+@app.put("/settings/{key}")
+def put_setting(key: str, req: SettingRequest, x_api_key: str = Header()):
+    check_key(x_api_key)
+    if key not in SETTINGS:
+        raise HTTPException(status_code=404, detail="No setting with that name")
+    allowed, _ = SETTINGS[key]
+    if req.value not in allowed:
+        raise HTTPException(status_code=400, detail=f"Allowed values: {sorted(allowed)}")
+    set_setting(key, req.value)
+    return {key: req.value}
