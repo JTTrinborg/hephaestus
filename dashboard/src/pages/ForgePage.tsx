@@ -6,7 +6,7 @@ import { CommissionForm } from "../components/CommissionForm";
 import { CostTotals, PERIODS, periodDays, type Period } from "../components/CostTotals";
 import { CostByAgentChart } from "../components/charts/CostByAgentChart";
 import { CostLineChart } from "../components/charts/CostLineChart";
-import { brisbaneToday, isoDay } from "../lib/format";
+import { firstDay } from "../lib/format";
 import { TaskTable } from "../components/TaskTable";
 import { Empty, ErrorBox, Loading, Section } from "../components/ui";
 
@@ -23,9 +23,7 @@ export function ForgePage() {
   const byAgent = days === 1;
   // /usage/daily counts back from this moment, so one extra day is fetched and trimmed to the period
   const daily = useUsageDaily(Math.min(days + 1, 365), live);
-  const start = brisbaneToday();
-  start.setDate(start.getDate() - (days - 1));
-  const inPeriod = (daily.data ?? []).filter((r) => r.day >= isoDay(start));
+  const inPeriod = (daily.data ?? []).filter((r) => r.day >= firstDay(days));
   const periodLabel = PERIODS.find((p) => p.key === period)!.label.toLowerCase();
   const chartTitle = byAgent
     ? `Cost per agent, ${periodLabel}`

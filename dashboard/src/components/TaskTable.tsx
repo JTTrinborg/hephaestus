@@ -10,8 +10,8 @@ import { Empty, ErrorBox, ExternalLink, Loading } from "./ui";
 const GRID = "md:grid md:grid-cols-[minmax(0,1fr)_7rem_8rem_5.5rem_1.5rem] md:items-center md:gap-4";
 
 // Tasks as expandable rows. On a phone each row becomes a small stacked card
-export function TaskTable({ tasks }: { tasks: Task[] }) {
-  if (tasks.length === 0) return <Empty>No tasks yet. Commission one above.</Empty>;
+export function TaskTable({ tasks, empty = "No tasks yet. Commission one above." }: { tasks: Task[]; empty?: string }) {
+  if (tasks.length === 0) return <Empty>{empty}</Empty>;
   return (
     <div className="card overflow-hidden">
       <div className={`hidden border-b border-line bg-sunken px-4 py-2 ${GRID}`} aria-hidden="true">

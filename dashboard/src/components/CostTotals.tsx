@@ -20,16 +20,30 @@ export function periodDays(period: Period): number {
   return 365;
 }
 
-// The four totals. Each tile is a button that picks the period the chart shows
+// The four totals. With onSelect each tile is a button that picks the period a chart shows
 export function CostTotals({
   summary,
   selected,
   onSelect,
 }: {
   summary: UsageSummary | undefined;
-  selected: Period;
-  onSelect: (p: Period) => void;
+  selected?: Period;
+  onSelect?: (p: Period) => void;
 }) {
+  if (!onSelect) {
+    return (
+      <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {PERIODS.map((t) => (
+          <div key={t.key} className="card px-4 py-3">
+            <dt className="label">{t.label}</dt>
+            <dd className="mt-1 font-display text-2xl font-semibold tabular-nums text-ink">
+              {summary ? usd(summary[t.key]) : "—"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
   return (
     <div className="grid grid-cols-2 gap-3" role="group" aria-label="Choose the period for the chart">
       {PERIODS.map((t) => {

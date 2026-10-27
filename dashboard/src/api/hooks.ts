@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { AgentStatus, Task, TaskDetail, UsageDay, UsageSummary } from "./types";
+import type { Agent, AgentStatus, Profile, Routine, Settings, Task, TaskDetail, UsageDay, UsageSummary } from "./types";
 
 export const FAST = 3_000;
 export const SLOW = 30_000;
@@ -59,6 +59,86 @@ export function useUsageDaily(days: number, live: boolean) {
     refetchInterval: live ? FAST : SLOW,
     // Keep the old chart on screen while another period loads
     placeholderData: keepPreviousData,
+  });
+}
+
+// Every agent in the registry, also those turned off
+export function useAgents() {
+  return useQuery({
+    queryKey: ["agents", "list"],
+    queryFn: () => api<Agent[]>("/agents"),
+  });
+}
+
+// Creates or changes an agent. The name in the URL and the body must match
+export function useSaveAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (agent: Agent) =>
+      api<Agent>(`/agents/${encodeURIComponent(agent.name)}`, { method: "PUT", body: agent }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agents"] }),
+  });
+}
+
+// Turns an agent on or off
+export function useSetActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, active }: { name: string; active: boolean }) =>
+      api<Agent>(`/agents/${encodeURIComponent(name)}`, { method: "PATCH", body: { active } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agents"] }),
+  });
+}
+
+export function useSettings() {
+  return useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api<Settings>("/settings"),
+  });
+}
+
+// Changes one setting. The API only accepts the allowed values
+export function useSetSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, value }: { key: keyof Settings; value: string }) =>
+      api<Record<string, string>>(`/settings/${key}`, { method: "PUT", body: { value } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
+  });
+}
+
+export function useRoutines() {
+  return useQuery({
+    queryKey: ["routines"],
+    queryFn: () => api<Routine[]>("/routines"),
+  });
+}
+
+// Changes the time of day or turns a routine on or off. Fields left out stay as they are
+export function useUpdateRoutine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, ...changes }: { name: string; daily_at?: string; active?: boolean }) =>
+      api(`/routines/${encodeURIComponent(name)}`, { method: "PATCH", body: changes }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["routines"] }),
+  });
+}
+
+export function useProfile() {
+  return useQuery({
+    queryKey: ["profile"],
+    queryFn: () => api<Profile>("/profile"),
+    // Never refetch behind the user's back while they edit
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Saves the profile. The API checks the YAML and answers 400 with the reason if it is invalid
+export function useSaveProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profile: Profile) => api<{ saved: boolean }>("/profile", { method: "PUT", body: profile }),
+    onSuccess: (_, profile) => qc.setQueryData(["profile"], profile),
   });
 }
 

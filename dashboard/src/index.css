@@ -125,6 +125,14 @@
 .recharts-cartesian-grid line {
   stroke: rgb(var(--line));
 }
+/* A thin surface gap between stacked segments and bars */
+.recharts-bar-rectangle path {
+  stroke: rgb(var(--surface));
+  stroke-width: 1px;
+}
+.recharts-tooltip-cursor {
+  fill: rgb(var(--ink) / 0.05);
+}
 
 /* Fluted columns framing the page, only where there is room for them */
 .column {
