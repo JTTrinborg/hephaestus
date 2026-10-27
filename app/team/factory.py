@@ -1,7 +1,7 @@
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from app.config import get_llm
 from app.db import month_cost
-from app.profile import PROFILE, SKILLS_TEXT
+from app.profile import load_profile
 from app.registry import AgentSpec
 from app.tools.registry import TOOLS
 from app.db import get_setting, month_cost
@@ -24,7 +24,8 @@ def build_agent(spec: AgentSpec):
 # Adds the profile only if the agent asks for it and the platform setting allows this provider
     local_only = get_setting("profile_local_only", "true") == "true"
     if spec.uses_profile and not (local_only and spec.provider != "ollama"):
-        system += f"\n\n# My profile\n{PROFILE}\n\n# My skills\n{SKILLS_TEXT}"
+        profile, skills = load_profile()
+        system += f"\n\n# My profile\n{profile}\n\n# My skills\n{skills}"
 
 # Runs the agent on the task and returns its answer
     def run(state: dict) -> dict:

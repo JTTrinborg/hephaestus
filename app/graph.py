@@ -14,7 +14,7 @@ from app.tools.search import search_tool
 from app.db import filter_new, mark_sent, cost_summary
 from app.budget import BudgetExceeded, check_budget
 from app.usage import track
-from app.profile import PROFILE, SKILLS_TEXT
+from app.profile import load_profile
 from app.models import Job, JobInfo
 from app.tools.alerts import split_alert
 t("imports done") # For troubleshooting
@@ -49,15 +49,17 @@ class JobState(TypedDict):
 
 
 ######## RANK NODE #####################
+# Scores every job in the alert against my profile, and lets code copy the exact lines
 def rank(state: JobState) -> dict:
-    start = time.time() # For troubleshooting
+    start = time.time()  # For troubleshooting
+    profile, skills = load_profile()
     jobs = []
     for chunk in split_alert(state["alert_text"]):
         lines = [l.strip() for l in chunk["text"].splitlines() if l.strip() and l.strip() != "logo"][-15:]
         numbered = "\n".join(f"{i}: {line}" for i, line in enumerate(lines))
         prompt = (
             "Score one job against my profile.\n\n"
-            f"# My profile\n{PROFILE}\n\n# My skills\n{SKILLS_TEXT}\n\n"
+            f"# My profile\n{profile}\n\n# My skills\n{skills}\n\n"
             "# Numbered lines before the job link\n"
             "The last job in these lines belongs to the link. "
             "Give the line numbers of its title, company and location. "
@@ -67,14 +69,18 @@ def rank(state: JobState) -> dict:
         result = rank_llm.invoke(prompt)
         track(RANK, result["raw"])
         info = result["parsed"]
-        def pick(i:int) -> str:
+        # Gets the line the model pointed at, or a placeholder if the number is wrong
+        def pick(i: int) -> str:
             return lines[i] if info and 0 <= i < len(lines) else "(could not read)"
         if info is None:
-            jobs.append(Job(title="(could not read)", company="", location="", url=chunk["url"], score=1, reason="Model output could not be parsed"))
+            jobs.append(Job(title="(could not read)", company="", location="", url=chunk["url"],
+                            score=1, reason="Model output could not be parsed"))
             continue
-        jobs.append(Job(title=pick(info.title_line), company=pick(info.company_line), location=pick(info.location_line), url=chunk["url"], score=info.score, reason=info.reason))
-    print(f"rank took {time.time() - start:.1f}s") # For troubleshooting
-    return {"jobs": sorted(jobs, key=lambda j: j.score, reverse= True)}
+        jobs.append(Job(title=pick(info.title_line), company=pick(info.company_line),
+                        location=pick(info.location_line), url=chunk["url"],
+                        score=info.score, reason=info.reason))
+    print(f"rank took {time.time() - start:.1f}s")  # For troubleshooting
+    return {"jobs": sorted(jobs, key=lambda j: j.score, reverse=True)}
 
 
 ######## RESEARCHER NODE #####################

@@ -2,6 +2,9 @@ import os
 import re
 import psycopg
 from app.models import Job
+from app.context import current_task
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 
 TZ = "Australia/Brisbane"
@@ -89,6 +92,18 @@ CREATE TABLE IF NOT EXISTS routines (
 
 
 
+############################ DATABASE FOR PROFILE #####################################
+CREATE_PROFILE = """
+CREATE TABLE IF NOT EXISTS profile (
+    id          INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    about       TEXT NOT NULL,
+    skills_yaml TEXT NOT NULL,
+    updated_at  TIMESTAMPTZ DEFAULT now()
+);
+"""
+
+
+
 
 
 #DB Connection
@@ -100,6 +115,11 @@ def _connect():
     conn.execute(CREATE_SETTINGS)
     conn.execute(CREATE_TASKS)
     conn.execute(CREATE_ROUTINES)
+    conn.execute(CREATE_PROFILE)
+    conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
+    conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS current_agent TEXT")
+    conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS results JSONB")
+    conn.execute("ALTER TABLE routines ADD COLUMN IF NOT EXISTS last_started_at TIMESTAMPTZ")
     return conn
 
 def _key(job: Job) -> str:
@@ -143,12 +163,13 @@ def mark_sent(jobs: list[Job]) -> None:
             )
 
 
-def log_usage(agent: str, model: str, input_tokens: int, output_tokens: int, cost: float) -> None:
+# Stores one model call, linked to the task that is running, if any
+def log_usage(agent: str, model: str, tokens_in: int, tokens_out: int, cost: float) -> None:
     with _connect() as conn:
         conn.execute(
-            "INSERT INTO usage (agent, model, input_tokens, output_tokens, cost_usd) "
-            "VALUES (%s, %s, %s, %s, %s)",
-            (agent, model, input_tokens, output_tokens, cost),
+            "INSERT INTO usage (agent, model, input_tokens, output_tokens, cost_usd, task_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (agent, model, tokens_in, tokens_out, cost, current_task.get()),
         )
 
 
@@ -188,7 +209,7 @@ def cost_summary() -> str:
 def get_setting(key: str, default: str) -> str:
     try:
         with _connect() as conn:
-            row = conn.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchall()
+            row = conn.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchone()
         return row[0] if row else default
 # If no DB, such as in CI
     except Exception:
@@ -203,4 +224,56 @@ def set_setting(key: str, value: str) -> None:
             "INSERT INTO settings (key, value) VALUES (%s, %s) "
             "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
             (key, value),
+        )
+
+
+# Sums calls, tokens and cost per agent and day, for the cost charts
+def daily_usage(days: int = 30) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT (created_at AT TIME ZONE 'Australia/Brisbane')::date AS day, agent, "
+            "COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)::float "
+            "FROM usage WHERE created_at > now() - make_interval(days => %s) "
+            "GROUP BY day, agent ORDER BY day, agent",
+            (days,),
+        ).fetchall()
+    keys = ["day", "agent", "calls", "input_tokens", "output_tokens", "cost_usd"]
+    return [dict(zip(keys, row)) for row in rows]
+
+
+# Total cost today, this week, this month and all time, in Brisbane time
+def usage_summary() -> dict:
+    now = datetime.now(ZoneInfo("Australia/Brisbane"))
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week = today - timedelta(days=today.weekday())
+    month = today.replace(day=1)
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(cost_usd) FILTER (WHERE created_at >= %s), 0)::float, "
+            "COALESCE(SUM(cost_usd) FILTER (WHERE created_at >= %s), 0)::float, "
+            "COALESCE(SUM(cost_usd) FILTER (WHERE created_at >= %s), 0)::float, "
+            "COALESCE(SUM(cost_usd), 0)::float FROM usage",
+            (today, week, month),
+        ).fetchone()
+    return dict(zip(["today", "week", "month", "all_time"], row))
+
+
+
+# Reads my profile and skills, or None if they are not saved yet
+def get_profile_row() -> tuple[str, str] | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT about, skills_yaml FROM profile WHERE id = 1"
+        ).fetchone()
+    return (row[0], row[1]) if row else None
+
+
+# Saves my profile and skills, new or changed
+def save_profile(about: str, skills_yaml: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO profile (id, about, skills_yaml) VALUES (1, %s, %s) "
+            "ON CONFLICT (id) DO UPDATE SET about = EXCLUDED.about, "
+            "skills_yaml = EXCLUDED.skills_yaml, updated_at = now()",
+            (about, skills_yaml),
         )

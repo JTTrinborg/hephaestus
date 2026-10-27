@@ -9,6 +9,13 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
+from app.db import daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting
+from app.taskqueue import list_tasks
+from app.status import agent_status
+from app.profile import from_files
+from app.routines import list_routines, update_routine
+from datetime import time
+import yaml
 import urllib.request
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
@@ -26,6 +33,20 @@ class RunResponse(BaseModel):
 # The body for turning an agent on or off
 class ActiveRequest(BaseModel):
     active: bool
+
+# The body for saving my profile
+class ProfileUpdate(BaseModel):
+    about: str
+    skills_yaml: str
+
+# The body for changing one setting
+class SettingRequest(BaseModel):
+    value: str
+
+# The body for changing a routine, both fields are optional
+class RoutineUpdate(BaseModel):
+    daily_at: time | None = None
+    active: bool | None = None
 
 
 def check_key(x_api_key: str) -> None:
@@ -128,3 +149,104 @@ def read_task(task_id: int, x_api_key: str = Header()):
     if task is None:
         raise HTTPException(status_code=404, detail="No task with that ID")
     return task
+
+
+# List the newest tasks, without the full answer
+@app.get("/tasks")
+def get_tasks(limit: int = 50, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_tasks(min(limit, 200))
+
+
+#################### CODE FOR COST #################################
+# Cost and tokens per agent and day for the last days
+@app.get("/usage/daily")
+def get_daily_usage(days: int = 30, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return daily_usage(max(1, min(days, 365)))
+
+
+# Cost today, this week, this month and all time
+@app.get("/usage/summary")
+def get_usage_summary(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return usage_summary()
+
+
+################# CODE FOR AGENT STATUS ######################
+# Live status for every agent, for the cards on the front page
+@app.get("/agents/status")
+def get_agent_status(x_api_key: str = Header()):
+    check_key(x_api_key)
+    names = ["supervisor"] + [s.name for s in list_agents()]
+    return agent_status(names)
+
+
+
+###################### CODE FOR PROFILE ######################
+# Shows my profile and skills as they are stored
+@app.get("/profile")
+def get_profile(x_api_key: str = Header()):
+    check_key(x_api_key)
+    about, skills = get_profile_row() or from_files()
+    return {"about": about, "skills_yaml": skills}
+
+
+# Saves my profile, if the skills are valid YAML with a skills list
+@app.put("/profile")
+def put_profile(req: ProfileUpdate, x_api_key: str = Header()):
+    check_key(x_api_key)
+    try:
+        parsed = yaml.safe_load(req.skills_yaml) or {}
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+    if not isinstance(parsed.get("skills"), list):
+        raise HTTPException(status_code=400, detail="skills_yaml must contain a list called skills")
+    save_profile(req.about, req.skills_yaml)
+    return {"saved": True}
+
+
+
+########################## CODE FOR SETTINGS #############################
+SETTINGS = {
+    "supervisor_provider": ({"anthropic", "ollama", "jev"}, os.getenv("SUPERVISOR_PROVIDER", "ollama")),
+    "profile_local_only": ({"true", "false"}, "true"),
+}
+
+
+# Shows the current value of every setting
+@app.get("/settings")
+def get_settings(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return {key: get_setting(key, default) for key, (_, default) in SETTINGS.items()}
+
+
+# Changes one setting, if the key and value are allowed
+@app.put("/settings/{key}")
+def put_setting(key: str, req: SettingRequest, x_api_key: str = Header()):
+    check_key(x_api_key)
+    if key not in SETTINGS:
+        raise HTTPException(status_code=404, detail="No setting with that name")
+    allowed, _ = SETTINGS[key]
+    if req.value not in allowed:
+        raise HTTPException(status_code=400, detail=f"Allowed values: {sorted(allowed)}")
+    set_setting(key, req.value)
+    return {key: req.value}
+
+
+
+################## CODE FOR ROUTINES ############################
+# Lists all routines with time of day and last run
+@app.get("/routines")
+def get_routines(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_routines()
+
+
+# Changes the time of day or turns a routine on or off
+@app.patch("/routines/{name}")
+def patch_routine(name: str, req: RoutineUpdate, x_api_key: str = Header()):
+    check_key(x_api_key)
+    if not update_routine(name, req.daily_at, req.active):
+        raise HTTPException(status_code=404, detail="No routine with that name")
+    return {"name": name, "updated": req.model_dump(exclude_none=True)}
