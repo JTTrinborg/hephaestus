@@ -36,6 +36,18 @@ export function isoDay(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// The first day of a period of `days` days that ends today in Brisbane, as YYYY-MM-DD.
+// /usage/daily counts back from this moment, so callers fetch one extra day and drop rows before this
+export function firstDay(days: number): string {
+  const d = brisbaneToday();
+  d.setDate(d.getDate() - (days - 1));
+  return isoDay(d);
+}
+
+export function tokens(n: number): string {
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}k` : String(n);
+}
+
 export function duration(start: string | null, end: string | null): string | null {
   if (!start || !end) return null;
   const s = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000);

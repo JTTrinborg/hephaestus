@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { UsageDay } from "../../api/types";
 import { usd } from "../../lib/format";
 
@@ -9,8 +9,19 @@ export function costByAgent(rows: UsageDay[]) {
   return [...byAgent.entries()].map(([agent, cost]) => ({ agent, cost })).sort((a, b) => b.cost - a.cost);
 }
 
-// Horizontal bars, one per agent. Colours follow the theme through currentColor
-export function CostByAgentChart({ rows, height = 200, label }: { rows: UsageDay[]; height?: number; label: string }) {
+// Horizontal bars, one per agent. The agent's name is on the axis, so colour is only a help.
+// Without colorOf the bars use the accent through currentColor
+export function CostByAgentChart({
+  rows,
+  height = 200,
+  label,
+  colorOf,
+}: {
+  rows: UsageDay[];
+  height?: number;
+  label: string;
+  colorOf?: (agent: string) => string;
+}) {
   const data = costByAgent(rows);
   if (data.length === 0) {
     return (
@@ -26,8 +37,10 @@ export function CostByAgentChart({ rows, height = 200, label }: { rows: UsageDay
           <CartesianGrid horizontal={false} strokeDasharray="3 3" />
           <XAxis type="number" tickFormatter={(v: number) => usd(v)} tickLine={false} axisLine={false} fontSize={12} />
           <YAxis type="category" dataKey="agent" tickLine={false} axisLine={false} width={88} fontSize={12} />
-          <Tooltip content={<AgentTooltip />} cursor={{ fill: "currentColor", fillOpacity: 0.06 }} />
-          <Bar dataKey="cost" fill="currentColor" radius={[0, 3, 3, 0]} maxBarSize={22} isAnimationActive={false} />
+          <Tooltip content={<AgentTooltip />} />
+          <Bar dataKey="cost" fill="currentColor" radius={[0, 4, 4, 0]} maxBarSize={22} isAnimationActive={false}>
+            {colorOf && data.map((d) => <Cell key={d.agent} fill={colorOf(d.agent)} />)}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
