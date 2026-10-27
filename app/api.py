@@ -11,6 +11,7 @@ from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
 from app.db import daily_usage
 from app.taskqueue import list_tasks
+from app.status import agent_status
 import urllib.request
 
 #### THIS FILE IS FOR THE CONNECTION USING FASTAPI ############
@@ -146,3 +147,11 @@ def get_daily_usage(days: int = 30, x_api_key: str = Header()):
     check_key(x_api_key)
     return daily_usage(max(1, min(days, 365)))
 
+
+################# CODE FOR AGENT STATUS ######################
+# Live status for every agent, for the cards on the front page
+@app.get("/agents/status")
+def get_agent_status(x_api_key: str = Header()):
+    check_key(x_api_key)
+    names = ["supervisor"] + [s.name for s in list_agents()]
+    return agent_status(names)
