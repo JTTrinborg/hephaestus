@@ -10,3 +10,4 @@ fastapi
 uvicorn    
 psycopg[binary]
 tzdata
+langchain-openai

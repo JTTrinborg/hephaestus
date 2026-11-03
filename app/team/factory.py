@@ -6,6 +6,7 @@ from app.registry import AgentSpec
 from app.tools.registry import TOOLS
 from app.db import get_setting, month_cost
 from app.usage import track
+from app.model_registry import get_model
 
 ############## THE FACTORY FILE THAT BUILDS AND RUNS THE AGENTS ###################
 
@@ -21,9 +22,10 @@ def build_agent(spec: AgentSpec):
     if tools:
         llm = llm.bind_tools(tools)
     system = spec.system_prompt
-# Adds the profile only if the agent asks for it and the platform setting allows this provider
+# Adds the profile only if the agent asks for it and the platform setting allows this model
+    model = get_model(spec.provider)
     local_only = get_setting("profile_local_only", "true") == "true"
-    if spec.uses_profile and not (local_only and spec.provider != "ollama"):
+    if spec.uses_profile and not (local_only and not (model and model.local)):
         profile, skills = load_profile()
         system += f"\n\n# My profile\n{profile}\n\n# My skills\n{skills}"
 

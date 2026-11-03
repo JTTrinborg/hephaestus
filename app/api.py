@@ -14,6 +14,7 @@ from app.taskqueue import list_tasks
 from app.status import agent_status
 from app.profile import from_files
 from app.routines import list_routines, update_routine
+from app.model_registry import ModelSpec, get_model, list_models, upsert_model
 from datetime import time
 import yaml
 import urllib.request
@@ -115,6 +116,8 @@ def put_agent(name: str, spec: AgentSpec, x_api_key: str = Header()):
     unknown= [t for t in spec.tools if t not in TOOLS]
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown tools: {unknown}")
+    if get_model(spec.provider) is None and spec.provider != "jev":
+        raise HTTPException(status_code=400, detail=f"Unknown model: {spec.provider}")
     upsert_agent(spec)
     return spec
 
@@ -209,8 +212,8 @@ def put_profile(req: ProfileUpdate, x_api_key: str = Header()):
 
 ########################## CODE FOR SETTINGS #############################
 SETTINGS = {
-    "supervisor_provider": ({"anthropic", "ollama", "jev"}, os.getenv("SUPERVISOR_PROVIDER", "ollama")),
-    "profile_local_only": ({"true", "false"}, "true"),
+    "supervisor_provider": (lambda: {m.name for m in list_models()} | {"jev"}, os.getenv("SUPERVISOR_PROVIDER", "ollama")),
+    "profile_local_only": (lambda: {"true", "false"}, "true"),
 }
 
 
@@ -227,7 +230,7 @@ def put_setting(key: str, req: SettingRequest, x_api_key: str = Header()):
     check_key(x_api_key)
     if key not in SETTINGS:
         raise HTTPException(status_code=404, detail="No setting with that name")
-    allowed, _ = SETTINGS[key]
+    allowed = SETTINGS[key][0]()
     if req.value not in allowed:
         raise HTTPException(status_code=400, detail=f"Allowed values: {sorted(allowed)}")
     set_setting(key, req.value)
@@ -250,3 +253,23 @@ def patch_routine(name: str, req: RoutineUpdate, x_api_key: str = Header()):
     if not update_routine(name, req.daily_at, req.active):
         raise HTTPException(status_code=404, detail="No routine with that name")
     return {"name": name, "updated": req.model_dump(exclude_none=True)}
+
+
+
+
+########################## CODE FOR MODELS #######################################
+# List all models, and wheter the key each one needs is set
+@app.get("/models")
+def get_models(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return [{**m.model_dump(), "key_set": not m.key_env or bool(os.getenv(m.key_env))} for m in list_models()]
+
+
+# Creates or changes a model
+@app.put("/models/{name}")
+def put_model(name: str, spec: ModelSpec, x_api_key: str = Header()):
+    check_key(x_api_key)
+    if spec.name != name:
+        raise HTTPException(status_code=400, detail="Name in the URL and the body must match")
+    upsert_model(spec)
+    return spec

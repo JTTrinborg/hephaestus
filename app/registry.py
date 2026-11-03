@@ -10,7 +10,7 @@ class AgentSpec(BaseModel):
     name: str = Field(pattern=r"^[a-z][a-z0-9_]{1,30}$")
     description: str
     system_prompt: str
-    provider: Literal["ollama", "anthropic"]
+    provider: str
     tools: list[str] = []
     uses_profile: bool = False
     budget_usd: float | None = None
