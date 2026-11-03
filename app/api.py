@@ -9,7 +9,7 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
-from app.db import daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting
+from app.db import _connect, daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting
 from app.taskqueue import list_tasks
 from app.status import agent_status
 from app.profile import from_files
@@ -311,3 +311,51 @@ def get_projects(x_api_key: str = Header()):
 def post_project(req: ProjectRequest, x_api_key: str = Header()):
     check_key(x_api_key)
     return {"id": create_project(req.name, req.description)}
+
+
+
+############################## CODE FOR DELETING ###############################
+# Deletes an agent, unless it is working right now
+@app.delete("/agents/{name}")
+def delete_agent(name: str, x_api_key: str = Header()):
+    check_key(x_api_key)
+    with _connect() as conn:
+        if conn.execute("SELECT 1 FROM tasks WHERE status = 'running' AND current_agent = %s", (name,)).fetchone():
+            raise HTTPException(status_code=409, detail="The agent is working right now")
+        if conn.execute("DELETE FROM agents WHERE name = %s", (name,)).rowcount == 0:
+            raise HTTPException(status_code=404, detail="No agent with that name")
+    return {"deleted": name}
+
+
+# Deletes a task, unless it is running
+@app.delete("/tasks/{task_id}")
+def delete_task(task_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    with _connect() as conn:
+        deleted = conn.execute("DELETE FROM tasks WHERE id = %s AND status <> 'running'", (task_id,)).rowcount
+    if deleted == 0:
+        raise HTTPException(status_code=409, detail="No such task, or it is running")
+    return {"deleted": task_id}
+
+
+# Deletes a model, unless an agent or the supervisor uses it
+@app.delete("/models/{name}")
+def delete_model(name: str, x_api_key: str = Header()):
+    check_key(x_api_key)
+    users = [a.name for a in list_agents(active_only=False) if a.provider == name]
+    if users or get_setting("supervisor_provider", "") == name:
+        raise HTTPException(status_code=409, detail=f"In use by {users or ['supervisor']}")
+    with _connect() as conn:
+        if conn.execute("DELETE FROM models WHERE name = %s", (name,)).rowcount == 0:
+            raise HTTPException(status_code=404, detail="No model with that name")
+    return {"deleted": name}
+
+
+# Deletes a project. Its tasks stay, without a project
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    with _connect() as conn:
+        if conn.execute("DELETE FROM projects WHERE id = %s", (project_id,)).rowcount == 0:
+            raise HTTPException(status_code=404, detail="No project with that id")
+    return {"deleted": project_id}
