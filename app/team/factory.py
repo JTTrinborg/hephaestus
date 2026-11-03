@@ -5,7 +5,7 @@ from app.profile import load_profile
 from app.registry import AgentSpec
 from app.tools.registry import TOOLS
 from app.db import get_setting, month_cost
-from app.usage import track
+from app.usage import track, track_tokens
 from app.model_registry import get_model
 
 ############## THE FACTORY FILE THAT BUILDS AND RUNS THE AGENTS ###################
@@ -16,6 +16,8 @@ MAX_STEPS = 6
 # Builds a working agent from one row in the registry
 def build_agent(spec: AgentSpec):
     """Turn one row from the registry into a graph node"""
+    if spec.kind == "decider":
+        return build_decider(spec)
     tools = [TOOLS[name] for name in spec.tools]
     by_name = {tool.name: tool for tool in tools}
     llm = get_llm(spec.provider)
@@ -48,3 +50,38 @@ def build_agent(spec: AgentSpec):
                 messages.append(ToolMessage(content=str(result), tool_call_id = call["id"]))
         return {"results": {spec.name: "Stopped after the step limit."}}
     return run
+
+
+
+# Builds a decider, an agent that answers one typed question with Jev instead of writing text
+def build_decider(spec: AgentSpec):
+    from langchain_typesafe import Choice, Noul, Score, TypeSafeClassifier
+    classifier = TypeSafeClassifier()
+
+# Asks Jev the question about the task and the earlier results, and stores the answer
+    def run(state: dict) -> dict:
+        earlier = "\n\n".join(f"# Result from {name}\n{text}" for name, text in state["results"].items())
+        state_text = f"Task: {state['task']}\n\n{earlier}".strip()
+        if spec.question_type == "choice":
+            question = Choice(instructions=spec.question, criteria=spec.options)
+        elif spec.question_type == "score":
+            question = Score(instructions=spec.question, levels=spec.options)
+        else:
+            question = Noul(instructions=spec.question)
+        response = classifier.invoke({"state": state_text, "questions": {"answer": question}})
+        usage = getattr(response, "usage", None)
+        track_tokens(spec.name, "jev-latest", getattr(usage, "input_tokens", 0) or 0)
+        return {"results": {spec.name: describe(spec.question_type, response)}}
+    return run
+
+
+# Turns Jev's typed answer into one short line the other agents can read
+def describe(question_type: str, response) -> str:
+    if question_type == "choice":
+        a = response.choices["answer"]
+        return f"{a.choice}, confidence {a.confidence:.2f}"
+    if question_type == "score":
+        a = response.scores["answer"]
+        return f"score {a.score:.2f}, confidence {a.confidence:.2f}"
+    p = response.nouls["answer"].noul
+    return f"{'yes' if p >= 0.5 else 'no'}, probability {p:.2f}"

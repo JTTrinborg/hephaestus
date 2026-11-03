@@ -273,3 +273,17 @@ def put_model(name: str, spec: ModelSpec, x_api_key: str = Header()):
         raise HTTPException(status_code=400, detail="Name in the URL and the body must match")
     upsert_model(spec)
     return spec
+
+
+
+
+##################### CODE FOR KEYS ################################
+# Keys the platform uses outside the model registry
+OTHER_KEYS = ["TAVILY_API_KEY", "TYPESAFE_API_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "N8N_WEBHOOK_KEY"]
+
+# shows which keys are set in .env, never their values
+@app.get("/settings/keys")
+def get_key_status(x_api_key: str = Header()):
+    check_key(x_api_key)
+    names = sorted({m.key_env for m in list_models() if m.key_env} | set(OTHER_KEYS))
+    return [{"name": n, "set": bool(os.getenv(n))} for n in names]
