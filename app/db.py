@@ -103,6 +103,34 @@ CREATE TABLE IF NOT EXISTS profile (
 """
 
 
+################ DATABASE FOR AI MODELS ######################################
+# Table for the model registry, one row per AI model the agents can use
+CREATE_MODELS = """
+CREATE TABLE IF NOT EXISTS models (
+    name      TEXT PRIMARY KEY,
+    kind      TEXT NOT NULL,
+    model     TEXT NOT NULL,
+    base_url  TEXT,
+    key_env   TEXT,
+    local     BOOLEAN NOT NULL DEFAULT false,
+    price_in  NUMERIC(10, 4) NOT NULL DEFAULT 0,
+    price_out NUMERIC(10, 4) NOT NULL DEFAULT 0
+);
+"""
+
+
+############################ DATABASE FOR PROJECTS ############################
+CREATE_PROJECTS = """
+CREATE TABLE IF NOT EXISTS projects (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT UNIQUE NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    active      BOOLEAN NOT NULL DEFAULT true,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+"""
+
+
 
 
 
@@ -116,10 +144,17 @@ def _connect():
     conn.execute(CREATE_TASKS)
     conn.execute(CREATE_ROUTINES)
     conn.execute(CREATE_PROFILE)
+    conn.execute(CREATE_MODELS)
+    conn.execute(CREATE_PROJECTS)
+    conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL")
     conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS current_agent TEXT")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS results JSONB")
     conn.execute("ALTER TABLE routines ADD COLUMN IF NOT EXISTS last_started_at TIMESTAMPTZ")
+    conn.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'worker'")
+    conn.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS question TEXT")
+    conn.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS question_type TEXT")
+    conn.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '{}'")
     return conn
 
 def _key(job: Job) -> str:

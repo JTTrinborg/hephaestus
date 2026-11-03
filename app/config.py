@@ -1,22 +1,29 @@
 import os
+from langchain_anthropic import ChatAnthropic
+from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
 ####### CONFIG FILE THAT RETREIVES THE AI MODELS #######################
 #For now it is hardcoded which models that is in the solution. Later this will be more dynamic
 
-def get_llm(provider: str | None = None):
-    provider = provider or os.getenv("MODEL_PROVIDER", "anthropic")
-    if provider == "ollama":
-        from langchain_ollama import ChatOllama
-        return ChatOllama(
-            model=os.getenv("OLLAMA_MODEL"),
-            base_url=os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"),
-            num_ctx=16384,
-            reasoning=False,
-        )
-    from langchain_anthropic import ChatAnthropic
-    return ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL"))
+# Builds a chat model from a row in the model registry
+def get_llm(name: str):
+    from app.model_registry import get_model
+    spec = get_model(name)
+    if spec is None:
+        raise ValueError(f"Unknown model: {name}")
+    if spec.kind == "anthropic":
+        return ChatAnthropic(model=spec.model)
+    if spec.kind == "ollama":
+        return ChatOllama(model=spec.model, base_url=os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"), temperature=0)
+    return ChatOpenAI(
+        model=spec.model,
+        base_url=spec.base_url,
+        api_key=os.getenv(spec.key_env or "") or "not-needed",
+        temperature=0,
+    )
 
 
 PRICES = {
@@ -32,8 +39,10 @@ BUDGETS = {
     "report": None,
 }
 
+# Price per million input and output tokens, from the registry or the old list
 def price_for(model: str) -> tuple[float, float]:
-    for name, price in PRICES.items():
-        if model.startswith(name):
-            return price
-    return (0.0, 0.0)
+    from app.model_registry import list_models
+    for spec in list_models():
+        if spec.model == model:
+            return spec.price_in, spec.price_out
+    return PRICES.get(model, (0.0, 0.0))

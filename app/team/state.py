@@ -13,6 +13,7 @@ def merge(old: dict, new: dict) -> dict:
 # Everything the team shares while it works on a task
 class TeamState(TypedDict):
     task: str
-    results: Annotated[dict[str, str], merge]    # one entry per agent that has worked
+    context: str
+    results: Annotated[dict[str, str], merge]
     next: str
     route_log: Annotated[list[str], operator.add]

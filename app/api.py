@@ -9,11 +9,13 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
-from app.db import daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting
+from app.db import _connect, daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting
 from app.taskqueue import list_tasks
 from app.status import agent_status
 from app.profile import from_files
 from app.routines import list_routines, update_routine
+from app.model_registry import ModelSpec, get_model, list_models, upsert_model
+from app.projects import create_project, list_projects
 from datetime import time
 import yaml
 import urllib.request
@@ -79,6 +81,7 @@ def run(req: RunRequest, x_api_key: str = Header()):
 
 class TaskRequest(BaseModel):
     task: str
+    project_id: int | None = None
 
 class TaskResponse(BaseModel):
     answer: str
@@ -115,6 +118,8 @@ def put_agent(name: str, spec: AgentSpec, x_api_key: str = Header()):
     unknown= [t for t in spec.tools if t not in TOOLS]
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown tools: {unknown}")
+    if get_model(spec.provider) is None and spec.provider != "jev":
+        raise HTTPException(status_code=400, detail=f"Unknown model: {spec.provider}")
     upsert_agent(spec)
     return spec
 
@@ -137,7 +142,7 @@ def set_active(name: str, req: ActiveRequest, x_api_key: str = Header()):
 @app.post("/tasks")
 def create_task(req: TaskRequest, x_api_key: str = Header()):
     check_key(x_api_key)
-    return {"id" : enqueue(req.task)}
+    return {"id": enqueue(req.task, project_id=req.project_id)}
 
 
 
@@ -151,11 +156,11 @@ def read_task(task_id: int, x_api_key: str = Header()):
     return task
 
 
-# List the newest tasks, without the full answer
+# Lists the newest tasks, without the full answers, optionally for one project
 @app.get("/tasks")
-def get_tasks(limit: int = 50, x_api_key: str = Header()):
+def get_tasks(limit: int = 50, project_id: int | None = None, x_api_key: str = Header()):
     check_key(x_api_key)
-    return list_tasks(min(limit, 200))
+    return list_tasks(min(limit, 200), project_id)
 
 
 #################### CODE FOR COST #################################
@@ -209,8 +214,8 @@ def put_profile(req: ProfileUpdate, x_api_key: str = Header()):
 
 ########################## CODE FOR SETTINGS #############################
 SETTINGS = {
-    "supervisor_provider": ({"anthropic", "ollama", "jev"}, os.getenv("SUPERVISOR_PROVIDER", "ollama")),
-    "profile_local_only": ({"true", "false"}, "true"),
+    "supervisor_provider": (lambda: {m.name for m in list_models()} | {"jev"}, os.getenv("SUPERVISOR_PROVIDER", "ollama")),
+    "profile_local_only": (lambda: {"true", "false"}, "true"),
 }
 
 
@@ -227,7 +232,7 @@ def put_setting(key: str, req: SettingRequest, x_api_key: str = Header()):
     check_key(x_api_key)
     if key not in SETTINGS:
         raise HTTPException(status_code=404, detail="No setting with that name")
-    allowed, _ = SETTINGS[key]
+    allowed = SETTINGS[key][0]()
     if req.value not in allowed:
         raise HTTPException(status_code=400, detail=f"Allowed values: {sorted(allowed)}")
     set_setting(key, req.value)
@@ -250,3 +255,107 @@ def patch_routine(name: str, req: RoutineUpdate, x_api_key: str = Header()):
     if not update_routine(name, req.daily_at, req.active):
         raise HTTPException(status_code=404, detail="No routine with that name")
     return {"name": name, "updated": req.model_dump(exclude_none=True)}
+
+
+
+
+########################## CODE FOR MODELS #######################################
+# List all models, and wheter the key each one needs is set
+@app.get("/models")
+def get_models(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return [{**m.model_dump(), "key_set": not m.key_env or bool(os.getenv(m.key_env))} for m in list_models()]
+
+
+# Creates or changes a model
+@app.put("/models/{name}")
+def put_model(name: str, spec: ModelSpec, x_api_key: str = Header()):
+    check_key(x_api_key)
+    if spec.name != name:
+        raise HTTPException(status_code=400, detail="Name in the URL and the body must match")
+    upsert_model(spec)
+    return spec
+
+
+
+
+##################### CODE FOR KEYS ################################
+# Keys the platform uses outside the model registry
+OTHER_KEYS = ["TAVILY_API_KEY", "TYPESAFE_API_KEY", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "N8N_WEBHOOK_KEY"]
+
+# shows which keys are set in .env, never their values
+@app.get("/settings/keys")
+def get_key_status(x_api_key: str = Header()):
+    check_key(x_api_key)
+    names = sorted({m.key_env for m in list_models() if m.key_env} | set(OTHER_KEYS))
+    return [{"name": n, "set": bool(os.getenv(n))} for n in names]
+
+
+
+##################### CODE FOR PROJECTS #########################################
+# The body for creating a project
+class ProjectRequest(BaseModel):
+    name: str
+    description: str = ""
+
+
+# Lists all projects with their number of tasks and cost
+@app.get("/projects")
+def get_projects(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_projects()
+
+
+# Creates a project
+@app.post("/projects")
+def post_project(req: ProjectRequest, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return {"id": create_project(req.name, req.description)}
+
+
+
+############################## CODE FOR DELETING ###############################
+# Deletes an agent, unless it is working right now
+@app.delete("/agents/{name}")
+def delete_agent(name: str, x_api_key: str = Header()):
+    check_key(x_api_key)
+    with _connect() as conn:
+        if conn.execute("SELECT 1 FROM tasks WHERE status = 'running' AND current_agent = %s", (name,)).fetchone():
+            raise HTTPException(status_code=409, detail="The agent is working right now")
+        if conn.execute("DELETE FROM agents WHERE name = %s", (name,)).rowcount == 0:
+            raise HTTPException(status_code=404, detail="No agent with that name")
+    return {"deleted": name}
+
+
+# Deletes a task, unless it is running
+@app.delete("/tasks/{task_id}")
+def delete_task(task_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    with _connect() as conn:
+        deleted = conn.execute("DELETE FROM tasks WHERE id = %s AND status <> 'running'", (task_id,)).rowcount
+    if deleted == 0:
+        raise HTTPException(status_code=409, detail="No such task, or it is running")
+    return {"deleted": task_id}
+
+
+# Deletes a model, unless an agent or the supervisor uses it
+@app.delete("/models/{name}")
+def delete_model(name: str, x_api_key: str = Header()):
+    check_key(x_api_key)
+    users = [a.name for a in list_agents(active_only=False) if a.provider == name]
+    if users or get_setting("supervisor_provider", "") == name:
+        raise HTTPException(status_code=409, detail=f"In use by {users or ['supervisor']}")
+    with _connect() as conn:
+        if conn.execute("DELETE FROM models WHERE name = %s", (name,)).rowcount == 0:
+            raise HTTPException(status_code=404, detail="No model with that name")
+    return {"deleted": name}
+
+
+# Deletes a project. Its tasks stay, without a project
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    with _connect() as conn:
+        if conn.execute("DELETE FROM projects WHERE id = %s", (project_id,)).rowcount == 0:
+            raise HTTPException(status_code=404, detail="No project with that id")
+    return {"deleted": project_id}
