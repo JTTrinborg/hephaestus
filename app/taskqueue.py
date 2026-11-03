@@ -6,12 +6,13 @@ from psycopg.types.json import Jsonb
 
 
 # Puts a new task in the queue and returns its number
-def enqueue(input_text: str, kind: str = "team") -> int:
+def enqueue(input_text: str, kind: str = "team", project_id: int | None = None) -> int:
     with _connect() as conn:
         task_id = conn.execute(
-            "INSERT INTO tasks (kind, input) VALUES (%s, %s) RETURNING id", (kind, input_text)
+            "INSERT INTO tasks (kind, input, project_id) VALUES (%s, %s, %s) RETURNING id",
+            (kind, input_text, project_id),
         ).fetchone()[0]
-        conn.execute("NOTIFY new_task")    # wakes the worker at once
+        conn.execute("NOTIFY new_task")
         return task_id
 
 
@@ -24,7 +25,7 @@ def claim_next() -> tuple | None:
             "UPDATE tasks SET status = 'running', started_at = now() "
             "WHERE id = (SELECT id FROM tasks WHERE status = 'new' ORDER BY id "
             "FOR UPDATE SKIP LOCKED LIMIT 1) "
-            "RETURNING id, kind, input"
+            "RETURNING id, kind, input, project_id",
         ).fetchone()
 
 
@@ -73,15 +74,18 @@ def save_progress(task_id: int, current_agent: str | None, route: list[str], res
         )
 
 
-# Gets the newest task without their answers, with the agent working now and the cost
-def list_tasks(limit: int = 50) -> list[dict]:
-    keys = ["id", "kind", "input", "status", "current_agent", "route", "error", "created_at", "started_at", "finished_at", "cost_usd"]
+# Gets the newest tasks without their answers, optionally only those in one project
+def list_tasks(limit: int = 50, project_id: int | None = None) -> list[dict]:
+    keys = ["id", "kind", "input", "status", "current_agent", "route", "error",
+            "created_at", "started_at", "finished_at", "project_id", "cost_usd"]
     with _connect() as conn:
         rows = conn.execute(
             "SELECT t.id, t.kind, t.input, t.status, t.current_agent, t.route, t.error, "
-            "t.created_at, t.started_at, t.finished_at, "
+            "t.created_at, t.started_at, t.finished_at, t.project_id, "
             "COALESCE((SELECT SUM(u.cost_usd) FROM usage u WHERE u.task_id = t.id), 0)::float "
-            "FROM tasks t ORDER BY t.id DESC LIMIT %s",
-            (limit,),
+            "FROM tasks t "
+            "WHERE %(project)s::int IS NULL OR t.project_id = %(project)s "
+            "ORDER BY t.id DESC LIMIT %(limit)s",
+            {"project": project_id, "limit": limit},
         ).fetchall()
     return [dict(zip(keys, row)) for row in rows]

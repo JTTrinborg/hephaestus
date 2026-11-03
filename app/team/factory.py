@@ -34,7 +34,11 @@ def build_agent(spec: AgentSpec):
 # Runs the agent on the task and returns its answer
     def run(state: dict) -> dict:
         earlier = "\n\n".join(f"# Result from {name}\n{text}" for name, text in state["results"].items())
-        messages = [SystemMessage(content=system), HumanMessage(content=f"#Task\n{state['task']}\n\n{earlier}".strip())]
+        project = f"# Project\n{state['context']}\n\n" if state.get("context") else ""
+        messages = [
+            SystemMessage(content=system),
+            HumanMessage(content=f"{project}# Task\n{state['task']}\n\n{earlier}".strip()),
+        ]
 # Asks the model, runs the tools it wants and repeats until it answers
         for _ in range(MAX_STEPS):
             if spec.budget_usd is not None and month_cost(spec.name) >= spec.budget_usd:
@@ -61,7 +65,8 @@ def build_decider(spec: AgentSpec):
 # Asks Jev the question about the task and the earlier results, and stores the answer
     def run(state: dict) -> dict:
         earlier = "\n\n".join(f"# Result from {name}\n{text}" for name, text in state["results"].items())
-        state_text = f"Task: {state['task']}\n\n{earlier}".strip()
+        project = f"Project\n{state['context']}\n\n" if state.get("context") else ""
+        state_text = f"{project}Task: {state['task']}\n\n{earlier}".strip() 
         if spec.question_type == "choice":
             question = Choice(instructions=spec.question, criteria=spec.options)
         elif spec.question_type == "score":

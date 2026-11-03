@@ -15,6 +15,7 @@ from app.status import agent_status
 from app.profile import from_files
 from app.routines import list_routines, update_routine
 from app.model_registry import ModelSpec, get_model, list_models, upsert_model
+from app.projects import create_project, list_projects
 from datetime import time
 import yaml
 import urllib.request
@@ -80,6 +81,7 @@ def run(req: RunRequest, x_api_key: str = Header()):
 
 class TaskRequest(BaseModel):
     task: str
+    project_id: int | None = None
 
 class TaskResponse(BaseModel):
     answer: str
@@ -140,7 +142,7 @@ def set_active(name: str, req: ActiveRequest, x_api_key: str = Header()):
 @app.post("/tasks")
 def create_task(req: TaskRequest, x_api_key: str = Header()):
     check_key(x_api_key)
-    return {"id" : enqueue(req.task)}
+    return {"id": enqueue(req.task, project_id=req.project_id)}
 
 
 
@@ -154,11 +156,11 @@ def read_task(task_id: int, x_api_key: str = Header()):
     return task
 
 
-# List the newest tasks, without the full answer
+# Lists the newest tasks, without the full answers, optionally for one project
 @app.get("/tasks")
-def get_tasks(limit: int = 50, x_api_key: str = Header()):
+def get_tasks(limit: int = 50, project_id: int | None = None, x_api_key: str = Header()):
     check_key(x_api_key)
-    return list_tasks(min(limit, 200))
+    return list_tasks(min(limit, 200), project_id)
 
 
 #################### CODE FOR COST #################################
@@ -287,3 +289,25 @@ def get_key_status(x_api_key: str = Header()):
     check_key(x_api_key)
     names = sorted({m.key_env for m in list_models() if m.key_env} | set(OTHER_KEYS))
     return [{"name": n, "set": bool(os.getenv(n))} for n in names]
+
+
+
+##################### CODE FOR PROJECTS #########################################
+# The body for creating a project
+class ProjectRequest(BaseModel):
+    name: str
+    description: str = ""
+
+
+# Lists all projects with their number of tasks and cost
+@app.get("/projects")
+def get_projects(x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_projects()
+
+
+# Creates a project
+@app.post("/projects")
+def post_project(req: ProjectRequest, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return {"id": create_project(req.name, req.description)}

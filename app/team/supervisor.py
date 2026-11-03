@@ -54,7 +54,7 @@ def build_llm_supervisor(specs: list[AgentSpec], provider: str):
         llm = base_llm.with_structured_output(Route, include_raw=True)
         team = "\n".join(f"- {s.name}: {s.description}" for s in available)
         system = SystemMessage(content=TEMPLATE.format(team=team))
-        status = f"Task: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}"
+        status = f"{state.get('context', '')}\n\nTask: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}".strip()
         result = llm.invoke([system, HumanMessage(content=status)])
         track(NAME, result["raw"])
         route = result["parsed"]
@@ -79,7 +79,7 @@ def build_jev_supervisor(specs: list[AgentSpec]):
         done = state["results"]
         # Only agents not done yet are options, plus FINISH
         options = {name: text for name, text in criteria.items() if name not in done}
-        status = f"Task: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}"
+        status = f"{state.get('context', '')}\n\nTask: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}".strip()
         response = classifier.invoke({
             "state": status,
             "questions": {

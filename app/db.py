@@ -119,6 +119,18 @@ CREATE TABLE IF NOT EXISTS models (
 """
 
 
+############################ DATABASE FOR PROJECTS ############################
+CREATE_PROJECTS = """
+CREATE TABLE IF NOT EXISTS projects (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT UNIQUE NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    active      BOOLEAN NOT NULL DEFAULT true,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+"""
+
+
 
 
 
@@ -133,6 +145,8 @@ def _connect():
     conn.execute(CREATE_ROUTINES)
     conn.execute(CREATE_PROFILE)
     conn.execute(CREATE_MODELS)
+    conn.execute(CREATE_PROJECTS)
+    conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL")
     conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS current_agent TEXT")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS results JSONB")

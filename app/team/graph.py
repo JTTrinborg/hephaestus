@@ -25,8 +25,8 @@ def build_team(specs=None):
 
 
 # Runs one task through the team
-def run_task(task: str, config: dict | None = None) -> dict:
-    start = {"task": task, "results": {}, "next": "", "route_log": []}
+def run_task(task: str, config: dict | None = None, context: str = "") -> dict:
+    start = {"task": task, "context": context, "results": {}, "next": "", "route_log": []}
     return build_team().invoke(start, config={**(config or {}), "recursion_limit": RECURSION_LIMIT})
 
 
@@ -40,8 +40,8 @@ def final_answer(result: dict) -> str:
 
 
 # Runs one task and yelds each step as it finishes, for live progress
-def stream_task(task: str, config: dict | None = None):
-    start = {"task": task, "results": {}, "next":"", "route_log": []}
+def stream_task(task: str, config: dict | None = None, context: str = ""):
+    start = {"task": task, "context": context, "results": {}, "next": "", "route_log": []}
     config = {**(config or {}), "recursion_limit": RECURSION_LIMIT}
     yield from build_team().stream(start, config=config, stream_mode="updates")
 
