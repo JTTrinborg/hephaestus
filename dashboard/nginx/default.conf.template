@@ -5,8 +5,14 @@ server {
     server_name _;
     root /usr/share/nginx/html;
 
+    # Docker's DNS. With the address in a variable, nginx looks up api again
+    # when the api container is rebuilt and gets a new IP, instead of answering 502
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $api_upstream http://api:8000;
+
     location /api/ {
-        proxy_pass http://api:8000/;
+        rewrite ^/api/(.*)$ /$1 break;
+        proxy_pass $api_upstream;
         proxy_set_header X-API-Key "${FASTAPI_KEY}";
         proxy_set_header Host $host;
         proxy_read_timeout 60s;

@@ -18,15 +18,14 @@ class ModelSpec(BaseModel):
     price_in: float = 0.0
     price_out: float = 0.0
 
-
-# Stops models that cannot work, and names the platform needs for itself
-@model_validator(mode="after")
-def check_rules(self):
-    if self.name == "jev":
-        raise ValueError("Jev is reserved for the decision model")
-    if self.kind == "openai_compatible" and not self.base_url:
-        raise ValueError("openai_compatible models need a base_url")
-    return self
+    # Stops models that cannot work, and names the platform needs for itself
+    @model_validator(mode="after")
+    def check_rules(self):
+        if self.name == "jev":
+            raise ValueError("Jev is reserved for the decision model")
+        if self.kind == "openai_compatible" and not self.base_url:
+            raise ValueError("openai_compatible models need a base_url")
+        return self
 
 
 # the models that work even without a database, for example in CI

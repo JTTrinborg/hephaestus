@@ -1,16 +1,31 @@
 import { useState } from "react";
-import { useTask } from "../api/hooks";
+import { useProjects, useTask } from "../api/hooks";
 import type { Task } from "../api/types";
 import { dateTime, duration, usd } from "../lib/format";
 import { LANGFUSE_URL } from "../lib/theme";
+import { DeleteButton } from "./DeleteButton";
 import { RouteTimeline } from "./RouteTimeline";
 import { StatusBadge } from "./StatusBadge";
 import { Empty, ErrorBox, ExternalLink, Loading } from "./ui";
 
+const shorten = (text: string, max: number) => (text.length > max ? `${text.slice(0, max).trimEnd()}…` : text);
+
 const GRID = "md:grid md:grid-cols-[minmax(0,1fr)_7rem_8rem_5.5rem_1.5rem] md:items-center md:gap-4";
 
-// Tasks as expandable rows. On a phone each row becomes a small stacked card
-export function TaskTable({ tasks, empty = "No tasks yet. Commission one above." }: { tasks: Task[]; empty?: string }) {
+// Tasks as expandable rows. On a phone each row becomes a small stacked card.
+// Each row names its project, except on a project's own page where showProject is false
+export function TaskTable({
+  tasks,
+  empty = "No tasks yet. Commission one above.",
+  showProject = true,
+}: {
+  tasks: Task[];
+  empty?: string;
+  showProject?: boolean;
+}) {
+  const projects = useProjects();
+  const projectName = (id: number | null) =>
+    showProject && id !== null ? projects.data?.find((p) => p.id === id)?.name ?? `Project ${id}` : null;
   if (tasks.length === 0) return <Empty>{empty}</Empty>;
   return (
     <div className="card overflow-hidden">
@@ -23,14 +38,14 @@ export function TaskTable({ tasks, empty = "No tasks yet. Commission one above."
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskRow key={t.id} task={t} />
+          <TaskRow key={t.id} task={t} project={projectName(t.project_id)} />
         ))}
       </ul>
     </div>
   );
 }
 
-function TaskRow({ task }: { task: Task }) {
+function TaskRow({ task, project }: { task: Task; project: string | null }) {
   const [open, setOpen] = useState(false);
   const panelId = `task-${task.id}`;
   return (
@@ -46,8 +61,16 @@ function TaskRow({ task }: { task: Task }) {
           <p className="truncate text-sm font-medium text-ink" title={task.input}>
             {task.input}
           </p>
-          <p className="text-xs text-muted">
-            #{task.id} · {dateTime(task.created_at)}
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+            <span>
+              #{task.id} · {dateTime(task.created_at)}
+            </span>
+            {project && (
+              <span className="max-w-[14rem] truncate rounded-full border border-line px-2 py-px text-[0.7rem] text-ink/80">
+                <span className="sr-only">Project: </span>
+                {project}
+              </span>
+            )}
           </p>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 md:contents">
@@ -134,7 +157,19 @@ function TaskDetailPanel({ task }: { task: Task }) {
             <dd>{took ?? "—"}</dd>
           </div>
         </dl>
-        <ExternalLink href={LANGFUSE_URL}>See the trace in Langfuse</ExternalLink>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <ExternalLink href={LANGFUSE_URL}>See the trace in Langfuse</ExternalLink>
+          {/* A running task can't be deleted, the API answers 409 */}
+          {data.status !== "running" && (
+            <DeleteButton
+              label="Delete task"
+              path={`/tasks/${task.id}`}
+              what={<>task <strong>#{task.id}</strong></>}
+              consequence={<>“{shorten(task.input, 80)}”. Its answer and route are deleted. Its cost stays in Usage.</>}
+              invalidate={[["tasks"], ["projects"], ["agents", "status"]]}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
