@@ -1,21 +1,35 @@
 import { useState } from "react";
-import { useRoutines, useSetSetting, useSettings, useUpdateRoutine } from "../api/hooks";
-import type { Routine, Settings } from "../api/types";
+import { useModels, useRoutines, useSetSetting, useSettings, useUpdateRoutine } from "../api/hooks";
+import type { Routine } from "../api/types";
+import { KeysSection } from "../components/KeysSection";
+import { ModelsSection } from "../components/ModelsSection";
 import { Toggle } from "../components/Toggle";
 import { Empty, ErrorBox, Loading, Section } from "../components/ui";
+import { usd } from "../lib/format";
 
-// The choices, with the measurements from the supervisor eval in the README
-const PROVIDERS: { value: Settings["supervisor_provider"]; name: string; note: string }[] = [
-  { value: "anthropic", name: "Claude Haiku", note: "Cloud. 30 of 30 right, twice. About $0.004 per 30 decisions" },
-  { value: "ollama", name: "Qwen3 14B", note: "Local and free. 26 to 29 of 30, slower" },
-  { value: "jev", name: "Jev", note: "Fastest and cheapest, 26 of 30. Can skip steps an agent depends on" },
-];
+// Measurements from the supervisor eval in the README, for the models it was run on
+const MEASURED: Record<string, string> = {
+  anthropic: "30 of 30 right, twice. About $0.004 per 30 decisions",
+  ollama: "26 to 29 of 30, slower",
+  jev: "Fastest and cheapest, 26 of 30. Can skip steps an agent depends on",
+};
 
 // Supervisor model, profile_local_only and the routines with time of day and active
 export function SettingsPage() {
   const settings = useSettings();
   const set = useSetSetting();
   const routines = useRoutines();
+  const models = useModels();
+  // Every model in the registry can supervise, and so can Jev
+  const choices = [
+    ...(models.data ?? []).map((m) => ({
+      value: m.name,
+      title: m.model,
+      where: `${m.local ? "Local" : "Cloud"} · ${m.local && !m.price_in && !m.price_out ? "free" : `${usd(m.price_in)} in, ${usd(m.price_out)} out per 1M tokens`}`,
+      warning: m.key_set === false ? `Key ${m.key_env} is missing` : null,
+    })),
+    { value: "jev", title: "Jev, TypeSafe decision model", where: "Cloud", warning: null },
+  ];
 
   return (
     <>
@@ -31,9 +45,10 @@ export function SettingsPage() {
       ) : settings.data ? (
         <>
           <Section title="Supervisor model">
+            {models.error && <ErrorBox error={models.error} />}
             <fieldset className="grid gap-3 md:grid-cols-3" disabled={set.isPending}>
-              <legend className="mb-3 text-sm text-muted">The model that picks which agent works next.</legend>
-              {PROVIDERS.map((p) => {
+              <legend className="mb-3 text-sm text-muted">The model that picks which agent works next. Every model below can do it, and Jev.</legend>
+              {choices.map((p) => {
                 const checked = settings.data!.supervisor_provider === p.value;
                 return (
                   <label
@@ -50,13 +65,15 @@ export function SettingsPage() {
                       onChange={() => set.mutate({ key: "supervisor_provider", value: p.value })}
                       className="mt-1 h-4 w-4 accent-[rgb(var(--accent))]"
                     />
-                    <span>
+                    <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2 font-medium">
-                        {p.name}
+                        <code className="font-mono">{p.value}</code>
                         {checked && <span className="text-xs font-normal text-accent">In use</span>}
                       </span>
-                      <span className="mt-1 block text-sm text-muted">{p.note}</span>
-                      <code className="mt-1 block font-mono text-xs text-muted">{p.value}</code>
+                      <span className="block break-words text-sm">{p.title}</span>
+                      <span className="block text-xs text-muted">{p.where}</span>
+                      {MEASURED[p.value] && <span className="mt-1 block text-xs text-muted">{MEASURED[p.value]}</span>}
+                      {p.warning && <span className="mt-1 block text-xs text-warn">⚠ {p.warning}</span>}
                     </span>
                   </label>
                 );
@@ -94,6 +111,9 @@ export function SettingsPage() {
           {set.isError && <ErrorBox error={set.error} />}
         </>
       ) : null}
+
+      <ModelsSection />
+      <KeysSection />
 
       <Section title="Routines">
         <p className="mb-3 text-sm text-muted">

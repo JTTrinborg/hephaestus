@@ -15,9 +15,14 @@ def get_llm(name: str):
     if spec is None:
         raise ValueError(f"Unknown model: {name}")
     if spec.kind == "anthropic":
-        return ChatAnthropic(model=spec.model)
+        return ChatAnthropic(model=spec.model)    # newer Claude models reject temperature
     if spec.kind == "ollama":
-        return ChatOllama(model=spec.model, base_url=os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"), temperature=0)
+        return ChatOllama(
+            model=spec.model,
+            base_url=os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"),
+            temperature=0,
+            reasoning=False,    # thinking off, rank went from 70 to about 10 seconds
+        )
     return ChatOpenAI(
         model=spec.model,
         base_url=spec.base_url,

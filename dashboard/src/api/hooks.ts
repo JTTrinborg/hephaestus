@@ -1,6 +1,19 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { Agent, AgentStatus, Profile, Routine, Settings, Task, TaskDetail, UsageDay, UsageSummary } from "./types";
+import type {
+  Agent,
+  AgentStatus,
+  KeyStatus,
+  Model,
+  Profile,
+  Project,
+  Routine,
+  Settings,
+  Task,
+  TaskDetail,
+  UsageDay,
+  UsageSummary,
+} from "./types";
 
 export const FAST = 3_000;
 export const SLOW = 30_000;
@@ -8,11 +21,11 @@ export const SLOW = 30_000;
 const isLive = (tasks: Task[] | undefined) =>
   !!tasks?.some((t) => t.status === "new" || t.status === "running");
 
-// The newest tasks. Polls every 3 s while one is waiting or running, otherwise every 30 s
-export function useTasks(limit: number) {
+// The newest tasks, optionally for one project. Polls every 3 s while one is waiting or running, otherwise every 30 s
+export function useTasks(limit: number, projectId?: number) {
   return useQuery({
-    queryKey: ["tasks", limit],
-    queryFn: () => api<Task[]>(`/tasks?limit=${limit}`),
+    queryKey: ["tasks", limit, projectId ?? null],
+    queryFn: () => api<Task[]>(`/tasks?limit=${limit}${projectId !== undefined ? `&project_id=${projectId}` : ""}`),
     refetchInterval: (q) => (isLive(q.state.data) ? FAST : SLOW),
   });
 }
@@ -145,7 +158,65 @@ export function useSaveProfile() {
 export function useCreateTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (task: string) => api<{ id: number }>("/tasks", { method: "POST", body: { task } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    mutationFn: (body: { task: string; project_id: number | null }) =>
+      api<{ id: number }>("/tasks", { method: "POST", body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+}
+
+// The model registry, with whether each model's key is set
+export function useModels() {
+  return useQuery({
+    queryKey: ["models"],
+    queryFn: () => api<Model[]>("/models"),
+  });
+}
+
+// Creates or changes a model. key_set is read-only, so it is left out
+export function useSaveModel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key_set: _, ...model }: Model) =>
+      api<Model>(`/models/${encodeURIComponent(model.name)}`, { method: "PUT", body: model }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["models"] });
+      qc.invalidateQueries({ queryKey: ["keys"] });
+    },
+  });
+}
+
+// Which keys are set in .env. The API never returns a value
+export function useKeys() {
+  return useQuery({
+    queryKey: ["keys"],
+    queryFn: () => api<KeyStatus[]>("/settings/keys"),
+  });
+}
+
+export function useProjects() {
+  return useQuery({
+    queryKey: ["projects"],
+    queryFn: () => api<Project[]>("/projects"),
+  });
+}
+
+export function useCreateProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; description: string }) =>
+      api<{ id: number }>("/projects", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
+  });
+}
+
+// Deletes one thing by path, for example /agents/writer. A 409 detail says why it can't be deleted now
+export function useDelete(invalidate: string[][]) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => api(path, { method: "DELETE" }),
+    onSuccess: () => invalidate.forEach((queryKey) => qc.invalidateQueries({ queryKey })),
   });
 }

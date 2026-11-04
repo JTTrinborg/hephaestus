@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useAgentStatus, useLive, useTasks, useUsageDaily, useUsageSummary } from "../api/hooks";
+import { useAgents, useAgentStatus, useLive, useTasks, useUsageDaily, useUsageSummary } from "../api/hooks";
 import { AgentCard } from "../components/AgentCard";
 import { CommissionForm } from "../components/CommissionForm";
 import { CostTotals, PERIODS, periodDays, type Period } from "../components/CostTotals";
@@ -15,6 +15,8 @@ export function ForgePage() {
   const live = useLive();
   const tasks = useTasks(10);
   const agents = useAgentStatus(live);
+  const registry = useAgents();
+  const deciders = new Set((registry.data ?? []).filter((a) => a.kind === "decider").map((a) => a.name));
   const summary = useUsageSummary(live);
 
   // The chart follows the cost tile that is picked. One day has no line to draw, so it shows cost per agent
@@ -51,7 +53,7 @@ export function ForgePage() {
         ) : agents.data?.length ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {agents.data.map((a) => (
-              <AgentCard key={a.name} agent={a} />
+              <AgentCard key={a.name} agent={a} decider={deciders.has(a.name)} />
             ))}
           </div>
         ) : (

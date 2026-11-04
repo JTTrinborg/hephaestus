@@ -7,6 +7,7 @@ const LINKS = [
   { to: "/", label: "The Forge" },
   { to: "/automatons", label: "Automatons" },
   { to: "/tasks", label: "Tasks" },
+  { to: "/projects", label: "Projects" },
   { to: "/usage", label: "Usage" },
   { to: "/profile", label: "My profile" },
   { to: "/settings", label: "Settings" },

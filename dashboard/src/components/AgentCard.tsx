@@ -3,7 +3,8 @@ import { usd } from "../lib/format";
 import { StatusBadge } from "./StatusBadge";
 
 // One automaton on The Forge. A working one glows like an ember
-export function AgentCard({ agent }: { agent: AgentStatus }) {
+// A decider's output is its answer, for example "yes, probability 0.87"
+export function AgentCard({ agent, decider = false }: { agent: AgentStatus; decider?: boolean }) {
   return (
     <article className={`card flex flex-col gap-3 p-4 transition-shadow ${agent.working ? "ember" : ""}`}>
       <header className="flex items-start justify-between gap-2">
@@ -14,10 +15,10 @@ export function AgentCard({ agent }: { agent: AgentStatus }) {
       </header>
       <div className="min-h-[4.5rem]">
         <p className="label mb-1">
-          Last output
+          {decider ? "Last answer" : "Last output"}
           {agent.last_task_id !== null && <span className="ml-1 normal-case tracking-normal">· task #{agent.last_task_id}</span>}
         </p>
-        <p className="line-clamp-3 text-sm text-ink/90" title={agent.last_output || undefined}>
+        <p className={`line-clamp-3 text-sm text-ink/90 ${decider ? "font-medium" : ""}`} title={agent.last_output || undefined}>
           {agent.last_output || <span className="italic text-muted">Nothing yet</span>}
         </p>
       </div>
