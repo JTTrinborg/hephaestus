@@ -146,6 +146,7 @@ def _connect():
     conn.execute(CREATE_PROFILE)
     conn.execute(CREATE_MODELS)
     conn.execute(CREATE_PROJECTS)
+    conn.execute("ALTER TABLE seen_jobs ADD COLUMN IF NOT EXISTS sent BOOLEAN NOT NULL DEFAULT true")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL")
     conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS current_agent TEXT")
@@ -181,21 +182,28 @@ def filter_new(jobs: list[Job]) -> list[Job]:
     keys = [_key(job) for job in jobs]
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT job_key FROM seen_jobs WHERE job_key = ANY(%s)", (keys,)
+            "SELECT job_key FROM seen_jobs WHERE job_key = ANY(%s) AND sent", (keys,)
         ).fetchall()
     seen = {row[0] for row in rows}
     return [job for job in jobs if _key(job) not in seen]
 
 
-def mark_sent(jobs: list[Job]) -> None:
-    """Store jobs so they are never sent again, and so agents can look them up."""
+def save_jobs(jobs: list[Job]) -> None:
+    """Store new jobs as not sent yet, so agents can look them up. n8n confirms them after emailing."""
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.executemany(
-                "INSERT INTO seen_jobs (job_key, title, company, url, location, score, reason) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (job_key) DO NOTHING",
+                "INSERT INTO seen_jobs (job_key, title, company, url, location, score, reason, sent) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, false) ON CONFLICT (job_key) DO NOTHING",
                 [(_key(j), j.title, j.company, j.url, j.location, j.score, j.reason) for j in jobs],
             )
+
+# Marks jobs as sent, called by n8n after the report email has gone out
+def mark_sent(job_keys: list[str]) -> int:
+    with _connect() as conn:
+        return conn.execute(
+            "UPDATE seen_jobs SET sent = true WHERE job_key = ANY(%s) AND NOT sent", (job_keys,)
+        ).rowcount
 
 
 # Stores one model call, linked to the task that is running, if any

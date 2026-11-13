@@ -9,7 +9,7 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
-from app.db import _connect, daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting
+from app.db import _connect, daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting, _key, mark_sent
 from app.taskqueue import list_tasks
 from app.status import agent_status
 from app.profile import from_files
@@ -31,6 +31,7 @@ class RunRequest(BaseModel):
 class RunResponse(BaseModel):
     report: str
     new_jobs: int
+    job_keys: list[str]
 
 # The body for turning an agent on or off
 class ActiveRequest(BaseModel):
@@ -44,6 +45,10 @@ class ProfileUpdate(BaseModel):
 # The body for changing one setting
 class SettingRequest(BaseModel):
     value: str
+
+# The body n8n sends after the email has gone out
+class SentRequest(BaseModel):
+    job_keys: list[str]
 
 # The body for changing a routine, both fields are optional
 class RoutineUpdate(BaseModel):
@@ -73,8 +78,9 @@ def health():
 @app.post("/run", response_model=RunResponse)
 def run(req: RunRequest, x_api_key: str = Header()):
     check_key(x_api_key)
-    result = graph.invoke({"alert_text": req.alert_text}, config=trace_config("morning-jobs", ['job-search'])) # Hardcoded for now
-    return RunResponse(report=result["report"], new_jobs=len(result["jobs"]))
+    result = graph.invoke({"alert_text": req.alert_text}, config=trace_config("morning-jobs", ["job-search"]))
+    keys = [_key(job) for job in result["jobs"]]
+    return RunResponse(report=result["report"], new_jobs=len(keys), job_keys=keys)
 
 
 ############ CODE FOR THE TEAM #####################################
@@ -359,3 +365,10 @@ def delete_project(project_id: int, x_api_key: str = Header()):
         if conn.execute("DELETE FROM projects WHERE id = %s", (project_id,)).rowcount == 0:
             raise HTTPException(status_code=404, detail="No project with that id")
     return {"deleted": project_id}
+
+
+# Marks the jobs in a report as sent, after n8n has emailed it
+@app.post("/jobs/sent")
+def jobs_sent(req: SentRequest, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return {"marked": mark_sent(req.job_keys)}
