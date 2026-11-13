@@ -156,13 +156,15 @@ def _connect():
     conn.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS question TEXT")
     conn.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS question_type TEXT")
     conn.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '{}'")
+    conn.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS requires TEXT[] NOT NULL DEFAULT '{}'")
     return conn
 
-def _key(job: Job) -> str:
-    """Stable ID. SEEK job ID when the URL has one, otherwise company and title."""
-    match = re.search(r"seek\.com\.au/job/(\d+)", job.url or "")
+# The key that identifies a job, SEEK's own job id when the link has one
+def _key(job) -> str:
+    match = re.search(r"/job/(\d+)", job.url or "")
     if match:
         return f"seek:{match.group(1)}"
+    # the old key, company and title, for links without an id
     company = re.sub(r"[^a-z0-9]", "", job.company.lower())
     title = re.sub(r"[^a-z0-9]", "", job.title.lower())
     return f"{company}:{title}"
