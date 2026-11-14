@@ -16,6 +16,7 @@ from app.profile import from_files
 from app.routines import list_routines, update_routine
 from app.model_registry import ModelSpec, get_model, list_models, upsert_model
 from app.projects import create_project, list_projects
+from app.approvals import decide, list_approvals
 from datetime import time
 import yaml
 import urllib.request
@@ -372,3 +373,32 @@ def delete_project(project_id: int, x_api_key: str = Header()):
 def jobs_sent(req: SentRequest, x_api_key: str = Header()):
     check_key(x_api_key)
     return {"marked": mark_sent(req.job_keys)}
+
+
+
+############################ CODE FOR APPROVALS ##################################
+# Lists approvals, for example only pending ones with ?status=pending
+@app.get("/approvals")
+def get_approvals(status: str | None = None, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_approvals(status)
+
+
+# Approves a pending action, which is then carried out
+@app.post("/approvals/{approval_id}/approve")
+def approve(approval_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    decision = decide(approval_id, True)
+    if decision is None:
+        raise HTTPException(status_code=409, detail="No pending approval with that number")
+    return decision
+
+
+# Rejects a pending action, nothing is carried out
+@app.post("/approvals/{approval_id}/reject")
+def reject(approval_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    decision = decide(approval_id, False)
+    if decision is None:
+        raise HTTPException(status_code=409, detail="No pending approval with that number")
+    return decision

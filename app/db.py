@@ -131,6 +131,21 @@ CREATE TABLE IF NOT EXISTS projects (
 """
 
 
+#################################### DATABASE FOR APPROVALS ###########################
+CREATE_APPROVALS = """
+CREATE TABLE IF NOT EXISTS approvals (
+    id          SERIAL PRIMARY KEY,
+    task_id     INTEGER,
+    action      TEXT NOT NULL,
+    payload     JSONB NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    result      TEXT,
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    decided_at  TIMESTAMPTZ
+);
+"""
+
+
 
 
 
@@ -146,6 +161,7 @@ def _connect():
     conn.execute(CREATE_PROFILE)
     conn.execute(CREATE_MODELS)
     conn.execute(CREATE_PROJECTS)
+    conn.execute(CREATE_APPROVALS)
     conn.execute("ALTER TABLE seen_jobs ADD COLUMN IF NOT EXISTS sent BOOLEAN NOT NULL DEFAULT true")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL")
     conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
