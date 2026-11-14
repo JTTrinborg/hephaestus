@@ -129,3 +129,25 @@ export interface Routine {
   active: boolean;
   last_run: string | null;
 }
+
+// GET /approvals. An action an agent proposed, which waits until I approve or reject it.
+// failed means it was approved but carrying it out raised an error, which is then in result
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "failed";
+
+export interface Approval {
+  id: number;
+  task_id: number | null;
+  action: string;
+  payload: Record<string, unknown>;
+  status: ApprovalStatus;
+  result: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
+// The payload of a send_email action
+export interface EmailPayload {
+  to: string;
+  subject: string;
+  body: string;
+}

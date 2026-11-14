@@ -2,6 +2,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { api } from "./client";
 import type {
   Agent,
+  Approval,
+  ApprovalStatus,
   AgentStatus,
   KeyStatus,
   Model,
@@ -218,5 +220,25 @@ export function useDelete(invalidate: string[][]) {
   return useMutation({
     mutationFn: (path: string) => api(path, { method: "DELETE" }),
     onSuccess: () => invalidate.forEach((queryKey) => qc.invalidateQueries({ queryKey })),
+  });
+}
+
+// Approvals, only pending ones with status "pending". Checked every ten seconds, also for the nav badge
+export function useApprovals(status?: "pending") {
+  return useQuery({
+    queryKey: ["approvals", status ?? "all"],
+    queryFn: () => api<Approval[]>(`/approvals${status ? `?status=${status}` : ""}`),
+    refetchInterval: 10_000,
+  });
+}
+
+// Approves or rejects one pending approval. Approve carries the action out at once, for example sends the email.
+// A 409 means it was already decided, and its detail is shown
+export function useDecideApproval() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision }: { id: number; decision: "approve" | "reject" }) =>
+      api<{ id: number; status: ApprovalStatus; result?: string | null }>(`/approvals/${id}/${decision}`, { method: "POST" }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["approvals"] }),
   });
 }

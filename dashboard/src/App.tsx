@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import { Layout } from "./components/layout/Layout";
+import { ApprovalsPage } from "./pages/ApprovalsPage";
 import { AutomatonsPage } from "./pages/AutomatonsPage";
 import { ComingSoon } from "./pages/ComingSoon";
 import { ForgePage } from "./pages/ForgePage";
@@ -17,6 +18,7 @@ export function App() {
         <Route index element={<ForgePage />} />
         <Route path="automatons" element={<AutomatonsPage />} />
         <Route path="tasks" element={<TasksPage />} />
+        <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:id" element={<ProjectPage />} />
         <Route path="usage" element={<UsagePage />} />

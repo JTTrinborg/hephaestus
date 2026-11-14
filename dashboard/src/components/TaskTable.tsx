@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useProjects, useTask } from "../api/hooks";
 import type { Task } from "../api/types";
 import { dateTime, duration, usd } from "../lib/format";
@@ -18,10 +18,12 @@ export function TaskTable({
   tasks,
   empty = "No tasks yet. Commission one above.",
   showProject = true,
+  openTaskId = null,
 }: {
   tasks: Task[];
   empty?: string;
   showProject?: boolean;
+  openTaskId?: number | null;
 }) {
   const projects = useProjects();
   const projectName = (id: number | null) =>
@@ -38,18 +40,23 @@ export function TaskTable({
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskRow key={t.id} task={t} project={projectName(t.project_id)} />
+          <TaskRow key={t.id} task={t} project={projectName(t.project_id)} linked={t.id === openTaskId} />
         ))}
       </ul>
     </div>
   );
 }
 
-function TaskRow({ task, project }: { task: Task; project: string | null }) {
-  const [open, setOpen] = useState(false);
+// A linked row starts open, is marked, and scrolls into view once
+function TaskRow({ task, project, linked = false }: { task: Task; project: string | null; linked?: boolean }) {
+  const [open, setOpen] = useState(linked);
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (linked) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [linked]);
   const panelId = `task-${task.id}`;
   return (
-    <li>
+    <li ref={ref} className={`scroll-mt-24 ${linked ? "ring-2 ring-inset ring-accent" : ""}`}>
       <button
         type="button"
         aria-expanded={open}
