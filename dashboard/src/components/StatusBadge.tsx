@@ -1,6 +1,6 @@
 import type { TaskStatus } from "../api/types";
 
-type Status = TaskStatus | "working" | "idle" | "off";
+type Status = TaskStatus | "working" | "idle" | "off" | "approved" | "rejected";
 
 // Colour and word together, so status never depends on colour alone
 const STYLE: Record<Status, { label: string; tone: string; pulse?: boolean }> = {
@@ -11,6 +11,8 @@ const STYLE: Record<Status, { label: string; tone: string; pulse?: boolean }> = 
   failed: { label: "Failed", tone: "text-bad bg-bad/10 border-bad/30" },
   idle: { label: "Idle", tone: "text-idle bg-idle/10 border-idle/30" },
   off: { label: "Off", tone: "text-idle bg-transparent border-idle/30" },
+  approved: { label: "Approved", tone: "text-ok bg-ok/10 border-ok/30" },
+  rejected: { label: "Rejected", tone: "text-idle bg-idle/10 border-idle/30" },
 };
 
 export function StatusBadge({ status }: { status: Status }) {

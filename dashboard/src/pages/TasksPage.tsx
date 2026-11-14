@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTasks } from "../api/hooks";
 import type { TaskStatus } from "../api/types";
 import { TaskTable } from "../components/TaskTable";
@@ -21,6 +21,8 @@ const FILTERS: { key: TaskStatus | "all"; label: string }[] = [
 export function TasksPage() {
   const tasks = useTasks(LIMIT);
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
+  // ?task=17 comes from links elsewhere, for example an approval. That row opens and scrolls into view
+  const linked = Number(useSearchParams()[0].get("task")) || null;
 
   const all = tasks.data ?? [];
   const count = (key: TaskStatus | "all") => (key === "all" ? all.length : all.filter((t) => t.status === key).length);
@@ -66,7 +68,12 @@ export function TasksPage() {
         <ErrorBox error={tasks.error} />
       ) : (
         <>
-          <TaskTable tasks={shown} empty={filter === "all" ? "No tasks yet." : `No ${label} tasks.`} />
+          {linked !== null && !all.some((t) => t.id === linked) && (
+            <p role="status" className="mb-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-sm">
+              Task #{linked} is not among the newest {LIMIT} tasks, or it was deleted.
+            </p>
+          )}
+          <TaskTable tasks={shown} empty={filter === "all" ? "No tasks yet." : `No ${label} tasks.`} openTaskId={linked} />
           {all.length >= LIMIT && (
             <p className="mt-3 text-xs text-muted">Showing the newest {LIMIT} tasks. Older ones are not listed by the API.</p>
           )}
