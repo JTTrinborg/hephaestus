@@ -41,11 +41,18 @@ def build_supervisor(specs: list[AgentSpec], provider: str | None = None):
 # Builds a supervisor where a normal language model picks the next agent
 def build_llm_supervisor(specs: list[AgentSpec], provider: str):
     base_llm = get_llm(provider)
-    # Looks at what is done and picks who works next, among agents not done yet
+# Looks at what is done and picks who works next, among agents that are ready
     def supervisor(state: dict) -> dict:
         done = state["results"]
-        available = [s for s in specs if s.name not in done]
-        # The only answers allowed, agents not done yet or FINISH
+        names = [s.name for s in specs]
+        has_project_memory = bool(state.get("context"))
+# Ready when not done, and every agent it requires has worked, or the project already holds that work
+        def ready(s) -> bool:
+            return s.name not in done and (
+                has_project_memory or all(r in done or r not in names for r in s.requires)
+            )
+        available = [s for s in specs if ready(s)]
+# The only answers allowed, ready agents or FINISH
         Route = create_model(
             "Route",
             next=(Literal[tuple([s.name for s in available] + ["FINISH"])], ...),
@@ -61,7 +68,6 @@ def build_llm_supervisor(specs: list[AgentSpec], provider: str):
         if route is None:
             return {"next": "FINISH", "route_log": ["FINISH: could not parse supervisor output"]}
         return {"next": route.next, "route_log": [f"{route.next}: {route.reason}"]}
-
     return supervisor
 
 
@@ -69,16 +75,21 @@ def build_llm_supervisor(specs: list[AgentSpec], provider: str):
 # Builds a supervisor that lets Jev pick the next agent
 def build_jev_supervisor(specs: list[AgentSpec]):
     from langchain_typesafe import Choice, TypeSafeClassifier
-
     classifier = TypeSafeClassifier()
     criteria = {s.name: s.description for s in specs}
     criteria["FINISH"] = "Stop. The task is done, or it is small talk, or nobody on the team can do it"
-
-    # Asks Jev who works next, and how sure it is
+# Asks Jev who works next, and how sure it is
     def supervisor(state: dict) -> dict:
         done = state["results"]
-        # Only agents not done yet are options, plus FINISH
-        options = {name: text for name, text in criteria.items() if name not in done}
+        names = [s.name for s in specs]
+        has_project_memory = bool(state.get("context"))
+# Ready when not done, and every agent it requires has worked, or the project already holds that work
+        def ready(s) -> bool:
+            return s.name not in done and (
+                has_project_memory or all(r in done or r not in names for r in s.requires)
+            )
+# Only ready agents are options, plus FINISH
+        options = {s.name: s.description for s in specs if ready(s)} | {"FINISH": criteria["FINISH"]}
         status = f"{state.get('context', '')}\n\nTask: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}".strip()
         response = classifier.invoke({
             "state": status,
@@ -90,8 +101,7 @@ def build_jev_supervisor(specs: list[AgentSpec]):
             },
         })
         answer = response.choices["next"]
-        usage = getattr(response, "usage", None)  
+        usage = getattr(response, "usage", None)
         track_tokens(NAME, "jev-latest", getattr(usage, "input_tokens", 0) or 0)
         return {"next": answer.choice, "route_log": [f"{answer.choice}: jev confidence {answer.confidence:.2f}"]}
-
     return supervisor

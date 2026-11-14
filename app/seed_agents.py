@@ -43,6 +43,7 @@ SEED_AGENTS = [
         ),
         provider="ollama",
         uses_profile=True,
+        requires=["researcher"],
     ),
 # WANT TO ADD MORE STANDARD AGENTS? Put them here:::
 ]

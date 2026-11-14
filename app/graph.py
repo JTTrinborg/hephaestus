@@ -11,7 +11,7 @@ from langfuse import get_client
 from app.tracing import trace_config
 from app.config import get_llm
 from app.tools.search import search_tool
-from app.db import filter_new, mark_sent, cost_summary
+from app.db import filter_new, save_jobs, cost_summary
 from app.budget import BudgetExceeded, check_budget
 from app.usage import track
 from app.profile import load_profile
@@ -151,7 +151,7 @@ def report(state:JobState) -> dict:
     if research.startswith("Company research skipped"):
         text = f"> ⚠️ {research}\n\n{text}"
     text = text + "\n\n" + cost_summary()
-    mark_sent(jobs)
+    save_jobs(jobs)
     return {"report": text}
 
 

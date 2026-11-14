@@ -9,13 +9,14 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
-from app.db import _connect, daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting
+from app.db import _connect, daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting, _key, mark_sent
 from app.taskqueue import list_tasks
 from app.status import agent_status
 from app.profile import from_files
 from app.routines import list_routines, update_routine
 from app.model_registry import ModelSpec, get_model, list_models, upsert_model
 from app.projects import create_project, list_projects
+from app.approvals import decide, list_approvals
 from datetime import time
 import yaml
 import urllib.request
@@ -31,6 +32,7 @@ class RunRequest(BaseModel):
 class RunResponse(BaseModel):
     report: str
     new_jobs: int
+    job_keys: list[str]
 
 # The body for turning an agent on or off
 class ActiveRequest(BaseModel):
@@ -44,6 +46,10 @@ class ProfileUpdate(BaseModel):
 # The body for changing one setting
 class SettingRequest(BaseModel):
     value: str
+
+# The body n8n sends after the email has gone out
+class SentRequest(BaseModel):
+    job_keys: list[str]
 
 # The body for changing a routine, both fields are optional
 class RoutineUpdate(BaseModel):
@@ -73,8 +79,9 @@ def health():
 @app.post("/run", response_model=RunResponse)
 def run(req: RunRequest, x_api_key: str = Header()):
     check_key(x_api_key)
-    result = graph.invoke({"alert_text": req.alert_text}, config=trace_config("morning-jobs", ['job-search'])) # Hardcoded for now
-    return RunResponse(report=result["report"], new_jobs=len(result["jobs"]))
+    result = graph.invoke({"alert_text": req.alert_text}, config=trace_config("morning-jobs", ["job-search"]))
+    keys = [_key(job) for job in result["jobs"]]
+    return RunResponse(report=result["report"], new_jobs=len(keys), job_keys=keys)
 
 
 ############ CODE FOR THE TEAM #####################################
@@ -359,3 +366,39 @@ def delete_project(project_id: int, x_api_key: str = Header()):
         if conn.execute("DELETE FROM projects WHERE id = %s", (project_id,)).rowcount == 0:
             raise HTTPException(status_code=404, detail="No project with that id")
     return {"deleted": project_id}
+
+
+# Marks the jobs in a report as sent, after n8n has emailed it
+@app.post("/jobs/sent")
+def jobs_sent(req: SentRequest, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return {"marked": mark_sent(req.job_keys)}
+
+
+
+############################ CODE FOR APPROVALS ##################################
+# Lists approvals, for example only pending ones with ?status=pending
+@app.get("/approvals")
+def get_approvals(status: str | None = None, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_approvals(status)
+
+
+# Approves a pending action, which is then carried out
+@app.post("/approvals/{approval_id}/approve")
+def approve(approval_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    decision = decide(approval_id, True)
+    if decision is None:
+        raise HTTPException(status_code=409, detail="No pending approval with that number")
+    return decision
+
+
+# Rejects a pending action, nothing is carried out
+@app.post("/approvals/{approval_id}/reject")
+def reject(approval_id: int, x_api_key: str = Header()):
+    check_key(x_api_key)
+    decision = decide(approval_id, False)
+    if decision is None:
+        raise HTTPException(status_code=409, detail="No pending approval with that number")
+    return decision

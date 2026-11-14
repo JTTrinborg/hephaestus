@@ -20,6 +20,7 @@ class AgentSpec(BaseModel):
     question: str | None = None
     question_type: Literal["choice", "score", "noul"] | None = None
     options: dict[str, str] = {}
+    requires: list[str] = []
 
 # Stops agents with names the platform needs for itself
     @model_validator(mode="after")
@@ -38,7 +39,8 @@ class AgentSpec(BaseModel):
 
 
 # The columns in the agents table, in the same order everywhere
-COLUMNS = "name, description, system_prompt, provider, tools, uses_profile, budget_usd, active, kind, question, question_type, options"
+COLUMNS = ("name, description, system_prompt, provider, tools, uses_profile, budget_usd, active, "
+           "kind, question, question_type, options, requires")
 # Turns one database row into an AgentSpec
 def _to_spec(row) -> AgentSpec:
     return AgentSpec(**dict(zip(COLUMNS.split(", "), row)))
@@ -57,18 +59,19 @@ def list_agents(active_only: bool = True) -> list[AgentSpec]:
 # Saves an agent, new or changed
 def upsert_agent(spec: AgentSpec) -> None:
     values = spec.model_dump()
-    values["options"] = Jsonb(spec.options)
+    values["options"] = Jsonb(spec.options)    # a Python dict must be wrapped to be stored as JSONB
     with _connect() as conn:
         conn.execute(
             f"INSERT INTO agents ({COLUMNS}) VALUES "
             "(%(name)s, %(description)s, %(system_prompt)s, %(provider)s, %(tools)s, "
             "%(uses_profile)s, %(budget_usd)s, %(active)s, "
-            "%(kind)s, %(question)s, %(question_type)s, %(options)s) "
+            "%(kind)s, %(question)s, %(question_type)s, %(options)s, %(requires)s) "
             "ON CONFLICT (name) DO UPDATE SET "
             "description = EXCLUDED.description, system_prompt = EXCLUDED.system_prompt, "
             "provider = EXCLUDED.provider, tools = EXCLUDED.tools, uses_profile = EXCLUDED.uses_profile, "
             "budget_usd = EXCLUDED.budget_usd, active = EXCLUDED.active, "
             "kind = EXCLUDED.kind, question = EXCLUDED.question, "
-            "question_type = EXCLUDED.question_type, options = EXCLUDED.options, updated_at = now()",
+            "question_type = EXCLUDED.question_type, options = EXCLUDED.options, "
+            "requires = EXCLUDED.requires, updated_at = now()",
             values,
         )
