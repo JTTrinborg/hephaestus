@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useProjects, useTask } from "../api/hooks";
 import type { Task } from "../api/types";
 import { dateTime, duration, usd } from "../lib/format";
@@ -119,8 +120,14 @@ function TaskDetailPanel({ task }: { task: Task }) {
         </div>
         {data.error && (
           <div>
-            <p className="label mb-1 text-bad">Error</p>
+            {/* A blocked task keeps the guard's reason in error */}
+            <p className="label mb-1 text-bad">{data.status === "blocked" ? "Blocked by a guard" : "Error"}</p>
             <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-bad/10 p-3 text-xs text-bad">{data.error}</pre>
+            {data.status === "blocked" && (
+              <Link to="/guards" className="mt-1 inline-block text-xs text-accent hover:underline">
+                See guard events →
+              </Link>
+            )}
           </div>
         )}
         <div>
@@ -131,7 +138,11 @@ function TaskDetailPanel({ task }: { task: Task }) {
             </div>
           ) : (
             <p className="text-sm italic text-muted">
-              {data.status === "failed" ? "No answer, the task failed." : "Not ready yet."}
+              {data.status === "failed"
+                ? "No answer, the task failed."
+                : data.status === "blocked"
+                  ? "No answer, a guard blocked the task."
+                  : "Not ready yet."}
             </p>
           )}
         </div>

@@ -15,6 +15,7 @@ const FILTERS: { key: TaskStatus | "all"; label: string }[] = [
   { key: "running", label: "Running" },
   { key: "done", label: "Done" },
   { key: "failed", label: "Failed" },
+  { key: "blocked", label: "Blocked" },
 ];
 
 // All tasks, filtered by status, with the same expandable rows as The Forge

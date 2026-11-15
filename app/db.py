@@ -284,6 +284,8 @@ def cost_summary() -> str:
 
 # Reads a setting or uses the default if it is missing
 def get_setting(key: str, default: str) -> str:
+    if not os.getenv("DATABASE_URL"):
+        return default
     try:
         with _connect() as conn:
             row = conn.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchone()

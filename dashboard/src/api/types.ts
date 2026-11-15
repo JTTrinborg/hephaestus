@@ -1,6 +1,7 @@
 // Shapes returned by the FastAPI backend in app/api.py
 
-export type TaskStatus = "new" | "running" | "done" | "failed";
+// blocked means a guard stopped the task, and the reason is in error
+export type TaskStatus = "new" | "running" | "done" | "failed" | "blocked";
 
 // GET /tasks
 export interface Task {
@@ -118,6 +119,7 @@ export interface Profile {
 export interface Settings {
   supervisor_provider: string; // a model name, or "jev"
   profile_local_only: "true" | "false";
+  input_guard: "true" | "false"; // the Jev injection check. The rules always run
 }
 
 // GET /routines
@@ -150,4 +152,20 @@ export interface EmailPayload {
   to: string;
   subject: string;
   body: string;
+}
+
+// GET /guards/events. One time a guard stopped, flagged or redacted something
+export type GuardName = "input" | "tool" | "pii" | "output";
+export type GuardAction = "blocked" | "flagged" | "redacted";
+
+export interface GuardEvent {
+  id: number;
+  task_id: number | null;
+  guard: GuardName;
+  source: string;
+  action: GuardAction;
+  reason: string;
+  score: number | null;
+  excerpt: string | null;
+  created_at: string;
 }

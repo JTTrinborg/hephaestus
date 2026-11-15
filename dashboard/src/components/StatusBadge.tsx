@@ -9,6 +9,7 @@ const STYLE: Record<Status, { label: string; tone: string; pulse?: boolean }> = 
   working: { label: "Working", tone: "text-accent bg-accent/10 border-accent/40", pulse: true },
   done: { label: "Done", tone: "text-ok bg-ok/10 border-ok/30" },
   failed: { label: "Failed", tone: "text-bad bg-bad/10 border-bad/30" },
+  blocked: { label: "Blocked", tone: "text-bad bg-bad/10 border-bad/30" },
   idle: { label: "Idle", tone: "text-idle bg-idle/10 border-idle/30" },
   off: { label: "Off", tone: "text-idle bg-transparent border-idle/30" },
   approved: { label: "Approved", tone: "text-ok bg-ok/10 border-ok/30" },

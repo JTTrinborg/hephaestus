@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from app.db import log_guard_event, get_setting
 from app.usage import track_tokens
 from app.profile import load_profile
@@ -69,10 +70,17 @@ def check_rules(text: str) -> str | None:
     return None
 
 
+# Builds the Jev client once and reuses it for every check
+@lru_cache(maxsize=1)
+def classifier():
+    from langchain_typesafe import TypeSafeClassifier
+    return TypeSafeClassifier()
+
+
 # Asks Jev how likely it is that the text is a manipulation attempt
 def injection_score(text: str) -> float:
-    from langchain_typesafe import Noul, TypeSafeClassifier
-    response = TypeSafeClassifier().invoke({
+    from langchain_typesafe import Noul
+    response = classifier().invoke({
         "state": text,
         "questions": {"answer": Noul(instructions=QUESTION)},
     })

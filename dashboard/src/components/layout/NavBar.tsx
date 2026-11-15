@@ -9,6 +9,7 @@ const LINKS = [
   { to: "/automatons", label: "Automatons" },
   { to: "/tasks", label: "Tasks" },
   { to: "/approvals", label: "Approvals" },
+  { to: "/guards", label: "Guards" },
   { to: "/projects", label: "Projects" },
   { to: "/usage", label: "Usage" },
   { to: "/profile", label: "My profile" },
@@ -33,7 +34,7 @@ function PendingBadge({ count }: { count: number }) {
   );
 }
 
-// Eight links don't fit beside the logo on a 1024 px screen, so the full nav starts at xl
+// Nine links don't fit beside the logo on a 1024 px screen, so the full nav starts at xl
 export function NavBar() {
   const [open, setOpen] = useState(false);
   const pending = useApprovals("pending").data?.length ?? 0;

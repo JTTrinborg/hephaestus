@@ -104,6 +104,27 @@ export function SettingsPage() {
             </div>
           </Section>
 
+          <Section title="Guards">
+            <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-medium">
+                  Jev injection check <code className="ml-1 font-mono text-xs text-muted">input_guard</code>
+                </p>
+                <p className="text-sm text-muted">
+                  Rules always run. This turns the Jev check on or off.
+                </p>
+              </div>
+              <Toggle
+                checked={settings.data.input_guard === "true"}
+                label="Jev injection check"
+                onText="On"
+                offText="Off"
+                disabled={set.isPending}
+                onChange={(on) => set.mutate({ key: "input_guard", value: on ? "true" : "false" })}
+              />
+            </div>
+          </Section>
+
           <p className="mt-3 min-h-[1.25rem] text-sm" aria-live="polite">
             {set.isPending && <span className="text-muted">Saving…</span>}
             {set.isSuccess && <span className="text-ok">✓ Saved</span>}

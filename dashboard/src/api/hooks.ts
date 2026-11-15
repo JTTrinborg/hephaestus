@@ -5,6 +5,8 @@ import type {
   Approval,
   ApprovalStatus,
   AgentStatus,
+  GuardEvent,
+  GuardName,
   KeyStatus,
   Model,
   Profile,
@@ -240,5 +242,16 @@ export function useDecideApproval() {
     mutationFn: ({ id, decision }: { id: number; decision: "approve" | "reject" }) =>
       api<{ id: number; status: ApprovalStatus; result?: string | null }>(`/approvals/${id}/${decision}`, { method: "POST" }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["approvals"] }),
+  });
+}
+
+// The newest guard events, optionally for one guard. Checked every 30 seconds
+export function useGuardEvents(limit: number, guard?: GuardName) {
+  return useQuery({
+    queryKey: ["guards", "events", limit, guard ?? "all"],
+    queryFn: () => api<GuardEvent[]>(`/guards/events?limit=${limit}${guard ? `&guard=${guard}` : ""}`),
+    refetchInterval: SLOW,
+    // Keep the rows on screen while another filter or a longer list loads
+    placeholderData: keepPreviousData,
   });
 }
