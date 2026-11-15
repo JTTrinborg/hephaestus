@@ -17,6 +17,7 @@ from app.routines import list_routines, update_routine
 from app.model_registry import ModelSpec, get_model, list_models, upsert_model
 from app.projects import create_project, list_projects
 from app.approvals import decide, list_approvals
+from app.guards import check
 from datetime import time
 import yaml
 import urllib.request
@@ -97,6 +98,9 @@ class TaskResponse(BaseModel):
 @app.post("/task", response_model=TaskResponse)
 def task(req: TaskRequest, x_api_key: str = Header()):
     check_key(x_api_key)
+    verdict = check(req.task, "task")
+    if verdict.blocked:
+        raise HTTPException(status_code=400, detail=f"Blocked by guard. {verdict.reason}")
     try:
         result = run_task(req.task, trace_config("team-task", ["team"]))
     except GraphRecursionError:
@@ -402,3 +406,4 @@ def reject(approval_id: int, x_api_key: str = Header()):
     if decision is None:
         raise HTTPException(status_code=409, detail="No pending approval with that number")
     return decision
+

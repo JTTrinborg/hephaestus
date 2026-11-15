@@ -4,9 +4,11 @@ import psycopg
 from app.context import current_task
 from app.projects import project_context 
 from app.routines import run_due_routines
-from app.taskqueue import claim_next, fail, finish, save_progress
+from app.taskqueue import block, claim_next, fail, finish, save_progress
 from app.team.graph import final_answer, stream_task
 from app.tracing import trace_config
+from app.guards import check
+
 
 
 
@@ -49,6 +51,11 @@ def main() -> None:
         log.info("Task %s started", task_id)
         token = current_task.set(task_id)
         try:
+            verdict = check(input_text, "task")
+            if verdict.blocked:
+                block(task_id, verdict.reason)
+                log.warning("Task %s blocked: %s", task_id, verdict.reason)
+                continue
             result, route = handle(task_id, kind, input_text, project_context(project_id))
             finish(task_id, result, route)
             log.info("Task %s done", task_id)

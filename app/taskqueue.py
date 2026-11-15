@@ -51,6 +51,14 @@ def fail(task_id: int, error: str) -> None:
         )
 
 
+# Marks a task as blocked by a guard, and saves why
+def block(task_id: int, reason: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE tasks SET status = 'blocked', current_agent = NULL, error = %s, "
+            "finished_at = now() WHERE id = %s",
+            (reason, task_id),
+        )
 
 
 # Gets one task with its status, answer, the agent working now and the result from each agent
