@@ -51,9 +51,10 @@ failed = 0
 for job in JOBS:
     state = {"task": "Write a cover letter for this job", "results": {"researcher": job}}
     draft = writer(state)["results"]["writer"]
+    letter, _, notes = draft.partition("\n\n---\n")
     grade = judge.invoke(
         JUDGE_PROMPT
-        + f"# Profile\n{PROFILE}\n\n# Skills\n{SKILLS_TEXT}\n\n# Job\n{job}\n\n# Draft\n{draft}"
+        + f"# Profile\n{PROFILE}\n\n# Skills\n{SKILLS_TEXT}\n\n# Job\n{job}\n\n# Draft\n{letter}"
     )
     ok = not grade.invented
     failed += not ok
@@ -63,6 +64,10 @@ for job in JOBS:
     for claim in grade.exaggerated:
         print(f"  exaggerated: {claim}")
     print(f"  {grade.reason}")
+    if notes:
+        print(f"  guard flagged: {notes.split('profile', 1)[-1].strip().replace(chr(10), ' | ')}")
+    else:
+        print("  guard flagged: nothing")
 
 print(f"\n{len(JOBS) - failed}/{len(JOBS)} drafts passed")
 sys.exit(0 if failed == 0 else 1)

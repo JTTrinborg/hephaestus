@@ -3,7 +3,7 @@ from app.config import get_llm
 from app.profile import load_profile
 from app.registry import AgentSpec
 from app.tools.registry import TOOLS
-from app.guards import UNTRUSTED_NOTE, scrub
+from app.guards import UNTRUSTED_NOTE, check_claims, scrub
 from app.db import get_setting, month_cost
 from app.usage import track, track_tokens
 from app.model_registry import get_model
@@ -52,7 +52,10 @@ def build_agent(spec: AgentSpec):
             track(spec.name, response)
             messages.append(response)
             if not response.tool_calls:
-                return {"results": {spec.name: response.text}}
+                text = response.text
+                if spec.uses_profile:
+                    text = check_claims(text, spec.name)
+                return {"results": {spec.name: text}}
 # Runs each tool the model asked for and gives it the result
             for call in response.tool_calls:
                 result = str(by_name[call["name"]].invoke(call["args"]))
