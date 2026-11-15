@@ -9,7 +9,7 @@ from app.team.graph import final_answer, run_task
 from app.registry import AgentSpec, list_agents, upsert_agent
 from app.tools.registry import TOOLS
 from app.taskqueue import enqueue, get_task
-from app.db import _connect, daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting, _key, mark_sent
+from app.db import _connect, daily_usage, usage_summary, get_profile_row, save_profile, get_setting, set_setting, _key, mark_sent, list_guard_events
 from app.taskqueue import list_tasks
 from app.status import agent_status
 from app.profile import from_files
@@ -226,7 +226,7 @@ def put_profile(req: ProfileUpdate, x_api_key: str = Header()):
 ########################## CODE FOR SETTINGS #############################
 SETTINGS = {
     "supervisor_provider": (lambda: {m.name for m in list_models()} | {"jev"}, os.getenv("SUPERVISOR_PROVIDER", "ollama")),
-    "profile_local_only": (lambda: {"true", "false"}, "true"),
+    "profile_local_only": (lambda: {"true", "false"}, "true"), "input_guard": (lambda: {"true", "false"}, "true"),
 }
 
 
@@ -407,3 +407,11 @@ def reject(approval_id: int, x_api_key: str = Header()):
         raise HTTPException(status_code=409, detail="No pending approval with that number")
     return decision
 
+
+
+############################ CODE FOR GUARDS ##################################
+# Lists the newest guard events, for example only blocked tasks with ?guard=input
+@app.get("/guards/events")
+def get_guard_events(limit: int = 50, guard: str | None = None, x_api_key: str = Header()):
+    check_key(x_api_key)
+    return list_guard_events(limit, guard)

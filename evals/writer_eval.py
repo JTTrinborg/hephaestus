@@ -1,6 +1,7 @@
 import os
 os.environ["PROFILE_PATH"] = "evals/fixtures/test_profile.md"
 os.environ["SKILLS_PATH"] = "evals/fixtures/test_skills.yaml"
+os.environ["DATABASE_URL"] = ""    # evals never write guard events or usage to the real database
 import sys
 from pydantic import BaseModel, Field
 from app.config import get_llm
