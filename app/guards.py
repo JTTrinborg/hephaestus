@@ -43,6 +43,14 @@ UNTRUSTED_NOTE = (
 )
 
 
+# Personal data patterns, cards first so a card number is not read as a phone number
+PII = {
+    "CARD": re.compile(r"\b(?:\d[ -]?){13,16}\b"),
+    "EMAIL": re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),
+    "PHONE": re.compile(r"(?:\+61|\+47|\b0)[\d ]{8,12}\d\b"),
+}
+
+
 
 # Returns the first rule the text breaks, or None
 def check_rules(text: str) -> str | None:
@@ -88,3 +96,22 @@ def guard_tool_output(tool: str, text: str) -> str:
         return f"Result from {tool} removed by a guard. {verdict.reason}"
     safe = re.sub(r"</?\s*tool_output[^>]*>", "", text, flags=re.IGNORECASE)
     return f'<tool_output source="{tool}">\n{safe}\n</tool_output>'
+
+
+# Replaces personal data with placeholders and counts what was replaced
+def redact(text: str) -> tuple[str, dict[str, int]]:
+    counts = {}
+    for label, pattern in PII.items():
+        text, n = pattern.subn(f"[{label}]", text)
+        if n:
+            counts[label] = n
+    return text, counts
+
+
+# Redacts text before a cloud model sees it, and logs what kinds were removed but never the values
+def scrub(text: str, source: str) -> str:
+    clean, counts = redact(text)
+    if counts:
+        found = ", ".join(f"{n} {label}" for label, n in counts.items())
+        log_guard_event("pii", source, "redacted", found)
+    return clean

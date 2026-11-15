@@ -1,13 +1,13 @@
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from app.config import get_llm
-from app.db import month_cost
 from app.profile import load_profile
 from app.registry import AgentSpec
 from app.tools.registry import TOOLS
-from app.guards import UNTRUSTED_NOTE
+from app.guards import UNTRUSTED_NOTE, scrub
 from app.db import get_setting, month_cost
 from app.usage import track, track_tokens
 from app.model_registry import get_model
+
 
 ############## THE FACTORY FILE THAT BUILDS AND RUNS THE AGENTS ###################
 
@@ -29,6 +29,7 @@ def build_agent(spec: AgentSpec):
         system += UNTRUSTED_NOTE
 # Adds the profile only if the agent asks for it and the platform setting allows this model
     model = get_model(spec.provider)
+    cloud = not (model and model.local)
     local_only = get_setting("profile_local_only", "true") == "true"
     if spec.uses_profile and not (local_only and not (model and model.local)):
         profile, skills = load_profile()
@@ -38,9 +39,10 @@ def build_agent(spec: AgentSpec):
     def run(state: dict) -> dict:
         earlier = "\n\n".join(f"# Result from {name}\n{text}" for name, text in state["results"].items())
         project = f"# Project\n{state['context']}\n\n" if state.get("context") else ""
+        content = f"{project}# Task\n{state['task']}\n\n{earlier}".strip()
         messages = [
             SystemMessage(content=system),
-            HumanMessage(content=f"{project}# Task\n{state['task']}\n\n{earlier}".strip()),
+            HumanMessage(content=scrub(content, spec.name) if cloud else content),
         ]
 # Asks the model, runs the tools it wants and repeats until it answers
         for _ in range(MAX_STEPS):
@@ -53,8 +55,10 @@ def build_agent(spec: AgentSpec):
                 return {"results": {spec.name: response.text}}
 # Runs each tool the model asked for and gives it the result
             for call in response.tool_calls:
-                result = by_name[call["name"]].invoke(call["args"])
-                messages.append(ToolMessage(content=str(result), tool_call_id = call["id"]))
+                result = str(by_name[call["name"]].invoke(call["args"]))
+                if cloud:
+                    result = scrub(result, spec.name)
+                messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
         return {"results": {spec.name: "Stopped after the step limit."}}
     return run
 

@@ -6,6 +6,7 @@ from app.config import get_llm
 from app.db import get_setting
 from app.registry import AgentSpec
 from app.usage import track, track_tokens
+from app.guards import scrub
 
 
 ############# SUPERVISOR AGENT FILE ##################################
@@ -61,7 +62,7 @@ def build_llm_supervisor(specs: list[AgentSpec], provider: str):
         llm = base_llm.with_structured_output(Route, include_raw=True)
         team = "\n".join(f"- {s.name}: {s.description}" for s in available)
         system = SystemMessage(content=TEMPLATE.format(team=team))
-        status = f"{state.get('context', '')}\n\nTask: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}".strip()
+        status = scrub(f"{state.get('context', '')}\n\nTask: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}".strip(), NAME)
         result = llm.invoke([system, HumanMessage(content=status)])
         track(NAME, result["raw"])
         route = result["parsed"]
@@ -90,7 +91,7 @@ def build_jev_supervisor(specs: list[AgentSpec]):
             )
 # Only ready agents are options, plus FINISH
         options = {s.name: s.description for s in specs if ready(s)} | {"FINISH": criteria["FINISH"]}
-        status = f"{state.get('context', '')}\n\nTask: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}".strip()
+        status = scrub(f"{state.get('context', '')}\n\nTask: {state['task']}\nAlready done: {', '.join(done) or 'nothing yet'}".strip(), NAME)
         response = classifier.invoke({
             "state": status,
             "questions": {
