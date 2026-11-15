@@ -146,6 +146,21 @@ CREATE TABLE IF NOT EXISTS approvals (
 """
 
 
+############################# DATABASE FOR GUARD EVENTS ##################################
+CREATE_GUARD_EVENTS = """
+CREATE TABLE IF NOT EXISTS guard_events (
+    id         SERIAL PRIMARY KEY,
+    task_id    INTEGER,
+    guard      TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    action     TEXT NOT NULL,
+    reason     TEXT,
+    score      REAL,
+    excerpt    TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+"""
+
 
 
 
@@ -162,6 +177,7 @@ def _connect():
     conn.execute(CREATE_MODELS)
     conn.execute(CREATE_PROJECTS)
     conn.execute(CREATE_APPROVALS)
+    conn.execute(CREATE_GUARD_EVENTS)
     conn.execute("ALTER TABLE seen_jobs ADD COLUMN IF NOT EXISTS sent BOOLEAN NOT NULL DEFAULT true")
     conn.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL")
     conn.execute("ALTER TABLE usage ADD COLUMN IF NOT EXISTS task_id INTEGER")
@@ -338,3 +354,28 @@ def save_profile(about: str, skills_yaml: str) -> None:
             "skills_yaml = EXCLUDED.skills_yaml, updated_at = now()",
             (about, skills_yaml),
         )
+
+
+# Stores one guard event, linked to the task the worker is running
+def log_guard_event(guard: str, source: str, action: str, reason: str = "", score: float | None = None, excerpt: str | None = None) -> None:
+    if not os.getenv("DATABASE_URL"):
+        return
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO guard_events (task_id, guard, source, action, reason, score, excerpt) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (current_task.get(), guard, source, action, reason, score, excerpt[:200] if excerpt else None),
+        )
+
+
+# Gets the newest guard events, optionally only from one guard
+def list_guard_events(limit: int = 50, guard: str | None = None) -> list[dict]:
+    keys = ["id", "task_id", "guard", "source", "action", "reason", "score", "excerpt", "created_at"]
+    with _connect() as conn:
+        rows = conn.execute(
+            f"SELECT {', '.join(keys)} FROM guard_events "
+            "WHERE %(guard)s::text IS NULL OR guard = %(guard)s "
+            "ORDER BY id DESC LIMIT %(limit)s",
+            {"guard": guard, "limit": limit},
+        ).fetchall()
+    return [dict(zip(keys, row)) for row in rows]
