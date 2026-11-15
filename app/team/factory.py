@@ -4,6 +4,7 @@ from app.db import month_cost
 from app.profile import load_profile
 from app.registry import AgentSpec
 from app.tools.registry import TOOLS
+from app.guards import UNTRUSTED_NOTE
 from app.db import get_setting, month_cost
 from app.usage import track, track_tokens
 from app.model_registry import get_model
@@ -24,6 +25,8 @@ def build_agent(spec: AgentSpec):
     if tools:
         llm = llm.bind_tools(tools)
     system = spec.system_prompt
+    if tools:
+        system += UNTRUSTED_NOTE
 # Adds the profile only if the agent asks for it and the platform setting allows this model
     model = get_model(spec.provider)
     local_only = get_setting("profile_local_only", "true") == "true"
