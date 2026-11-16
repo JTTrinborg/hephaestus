@@ -11,3 +11,6 @@ uvicorn
 psycopg[binary]
 tzdata
 langchain-openai
+langchain-mcp-adapters
+mcp
+mcp-server-fetch
